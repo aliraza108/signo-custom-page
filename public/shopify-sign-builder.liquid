@@ -1,0 +1,175 @@
+<!-- Sign Builder Designer - Compact Iframe Version -->
+<div class="sign-builder-container" style="margin: 1rem 0;">
+  <iframe
+    id="designer-iframe"
+    src="https://customsigns.vercel.app/?product={{ product.id }}&variant={{ product.selected_or_first_available_variant.id }}"
+    style="width: 100%; border: 1px solid #e5e7eb; border-radius: 8px; display: block;"
+  ></iframe>
+</div>
+
+<style>
+  .sign-builder-container {
+    background: #f9fafb;
+    border-radius: 8px;
+  }
+  
+  #designer-iframe {
+    min-height: 600px;
+  }
+  
+  @media (max-width: 768px) {
+    #designer-iframe {
+      min-height: 500px;
+    }
+  }
+</style>
+
+<script>
+  // Pass product data to iframe with retries
+  function sendProductDataToIframe() {
+    const iframe = document.getElementById('designer-iframe');
+    if (!iframe) {
+      console.warn('Sign builder iframe not found');
+      return;
+    }
+    
+    // Prepare product data with all metafields
+    const productData = {
+      id: {{ product.id | json }},
+      title: {{ product.title | json }},
+      handle: {{ product.handle | json }},
+      selected_or_first_available_variant: {
+        id: {{ product.selected_or_first_available_variant.id | json }},
+        price: {{ product.selected_or_first_available_variant.price | json }},
+      },
+      metafields: {{ product.metafields | json }},
+      images: {{ product.images | map: 'src' | json }}
+    };
+    
+    console.log('[Shopify] Sending product data to iframe:', productData);
+    
+    // Send product data to iframe
+    try {
+      iframe.contentWindow.postMessage({
+        type: 'SHOPIFY_PRODUCT_DATA',
+        product: productData
+      }, '*');
+      console.log('[Shopify] Product data sent successfully');
+    } catch (e) {
+      console.error('[Shopify] Error sending product data to iframe:', e);
+    }
+  }
+  
+  // Send data immediately when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', sendProductDataToIframe);
+  } else {
+    sendProductDataToIframe();
+  }
+  
+  // Also send on window load and retry a few times
+  window.addEventListener('load', () => {
+    sendProductDataToIframe();
+    // Retry after a short delay
+    setTimeout(() => {
+      sendProductDataToIframe();
+    }, 100);
+    setTimeout(() => {
+      sendProductDataToIframe();
+    }, 500);
+  });
+  
+  // Dynamically resize iframe to fit content
+  function resizeSignBuilderIframe() {
+    const iframe = document.getElementById('designer-iframe');
+    if (!iframe) return;
+    
+    try {
+      const iframeContent = iframe.contentDocument || iframe.contentWindow?.document;
+      if (iframeContent) {
+        const height = iframeContent.documentElement.scrollHeight;
+        iframe.style.height = (height + 20) + 'px';
+      }
+    } catch (e) {
+      // Cross-origin, use message passing or keep default height
+    }
+  }
+  
+  // Resize on load and periodically
+  document.addEventListener('DOMContentLoaded', resizeSignBuilderIframe);
+  window.addEventListener('load', resizeSignBuilderIframe);
+  
+  // Listen for messages from iframe
+  window.addEventListener('message', (event) => {
+    if (!event.data) return;
+
+    if (event.data.type === 'RESIZE_IFRAME') {
+      const iframe = document.getElementById('designer-iframe');
+      if (iframe) {
+        iframe.style.height = (event.data.height + 20) + 'px';
+      }
+    }
+
+    /* ========= RECEIVE ADD TO CART ========= */
+    if (event.data.type === 'ADD_TO_CART') {
+      (async function() {
+        const iframe = document.getElementById('designer-iframe');
+        try {
+          const cartData = {
+            id: event.data.variantId,
+            quantity: event.data.quantity || 1,
+            properties: event.data.properties || {}
+          };
+
+          if (event.data.customImage) {
+            cartData.properties['_customImage'] = event.data.customImage;
+          }
+
+          const response = await fetch("/cart/add.js", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(cartData)
+          });
+
+          if (!response.ok) throw new Error('Failed to add to cart');
+
+          const result = await response.json();
+          console.log('[Shopify] Added to cart:', result);
+
+          const cartResponse = await fetch('/cart.js');
+          const cart = await cartResponse.json();
+
+          document.documentElement.dispatchEvent(
+            new CustomEvent('cart:refresh', { bubbles: true })
+          );
+
+          if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({
+              type: 'CART_UPDATED',
+              payload: { success: true, cart: cart }
+            }, '*');
+          }
+
+          var note = document.createElement('div');
+          note.style.cssText = 'position:fixed;top:20px;right:20px;background:#000;color:#fff;padding:15px 20px;border-radius:5px;z-index:9999;';
+          note.textContent = 'Added to cart!';
+          document.body.appendChild(note);
+          setTimeout(function() { note.remove(); }, 3000);
+
+          if (event.data.checkout) {
+            window.location.href = '/checkout';
+          }
+
+        } catch (err) {
+          console.error("[Shopify] Cart failed:", err);
+          if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({
+              type: 'CART_ERROR',
+              payload: { success: false, error: err.message }
+            }, '*');
+          }
+        }
+      })();
+    }
+  });
+</script>

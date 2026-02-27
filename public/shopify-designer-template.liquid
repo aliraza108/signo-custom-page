@@ -1,0 +1,116 @@
+{% layout none %}
+
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ product.title }} - Custom Designer</title>
+  {{ content_for_header }}
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #ffffff;
+    }
+    
+    #designer-iframe {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <iframe
+    id="designer-iframe"
+    src="https://customsigns.vercel.app/?product={{ product.id }}&variant={{ product.selected_or_first_available_variant.id }}"
+    allow="same-origin"
+    title="Sign Designer">
+  </iframe>
+
+  <script>
+    (function() {
+      console.log('[Shopify] Sign Designer iframe initializing...');
+      
+      const iframe = document.getElementById('designer-iframe');
+      
+      // Product data to send
+      const productData = {
+        id: {{ product.id | json }},
+        title: {{ product.title | json }},
+        handle: {{ product.handle | json }},
+        store: '{{ shop.permanent_domain }}',
+        variant: {
+          id: {{ product.selected_or_first_available_variant.id | json }},
+          price: {{ product.selected_or_first_available_variant.price | json }}
+        },
+        metafields: {
+          {% if product.metafields.custom.materials %}
+          materials: {{ product.metafields.custom.materials | json }},
+          {% endif %}
+          {% if product.metafields.custom.sizes %}
+          sizes: {{ product.metafields.custom.sizes | json }},
+          {% endif %}
+          {% if product.metafields.custom.description %}
+          description: {{ product.metafields.custom.description | json }},
+          {% endif %}
+          {% if product.metafields.custom.price_per_sqft %}
+          price_per_sqft: {{ product.metafields.custom.price_per_sqft | json }}
+          {% endif %}
+        }
+      };
+
+      function sendProductData() {
+        if (!iframe || !iframe.contentWindow) {
+          console.log('[Shopify] Iframe not ready yet');
+          return;
+        }
+        
+        console.log('[Shopify] Sending product data to iframe');
+        console.log('[Shopify] Product:', productData.title);
+        console.log('[Shopify] Store:', productData.store);
+        
+        try {
+          iframe.contentWindow.postMessage({
+            type: 'SHOPIFY_PRODUCT_DATA',
+            payload: productData
+          }, '*');
+          console.log('[Shopify] Product data sent successfully');
+        } catch (e) {
+          console.error('[Shopify] Error sending data:', e);
+        }
+      }
+
+      // Send data when iframe loads
+      iframe.addEventListener('load', function() {
+        console.log('[Shopify] Iframe loaded');
+        sendProductData();
+        setTimeout(sendProductData, 100);
+        setTimeout(sendProductData, 500);
+      });
+
+      // Fallback: send data after delays
+      setTimeout(sendProductData, 100);
+      setTimeout(sendProductData, 800);
+      setTimeout(sendProductData, 1500);
+
+      // If already loaded
+      if (iframe.readyState === 'complete') {
+        console.log('[Shopify] Iframe already complete');
+        sendProductData();
+      }
+    })();
+  </script>
+</body>
+</html>

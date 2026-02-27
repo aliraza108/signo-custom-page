@@ -1,0 +1,157 @@
+{% layout none %}
+
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+  }
+
+  /* Hide Shopify footer */
+  footer,
+  .shopify-section-footer,
+  #shopify-section-footer {
+    display: none !important;
+  }
+
+  #designer-iframe {
+    display: block;
+    width: 100%;
+    height: 100vh;
+    border: 0;
+    background: white;
+  }
+
+  body {
+    background: white;
+    overflow: hidden;
+  }
+</style>
+
+<iframe
+  id="designer-iframe"
+  src="https://customsigns.vercel.app/?product={{ product.id }}&variant={{ product.selected_or_first_available_variant.id }}&store={{ shop.myshopify_domain }}">
+</iframe>
+
+<script>
+(function() {
+  'use strict';
+  
+  const iframe = document.getElementById('designer-iframe');
+  
+  function sendProductData() {
+    if (!iframe || !iframe.contentWindow) {
+      console.log('[Shopify] Iframe not ready');
+      return;
+    }
+
+    try {
+      const productData = {
+        id: {{ product.id | json }},
+        title: {{ product.title | json }},
+        handle: {{ product.handle | json }},
+        store: {{ shop.myshopify_domain | json }},
+        variant: {
+          id: {{ product.selected_or_first_available_variant.id | json }},
+          price: {{ product.selected_or_first_available_variant.price | json }},
+          sku: {{ product.selected_or_first_available_variant.sku | json }}
+        },
+        metafields: {{ product.metafields.custom | json }}
+      };
+
+      console.log('[Shopify] Sending product data:', productData);
+
+      iframe.contentWindow.postMessage({
+        type: 'SHOPIFY_PRODUCT_DATA',
+        payload: productData
+      }, '*');
+    } catch (error) {
+      console.error('[Shopify] Error sending data:', error);
+    }
+  }
+
+  // Send data when iframe loads
+  if (iframe.contentWindow) {
+    // Already loaded
+    sendProductData();
+  }
+
+  iframe.addEventListener('load', function() {
+    console.log('[Shopify] Iframe loaded');
+    sendProductData();
+    setTimeout(sendProductData, 300);
+    setTimeout(sendProductData, 800);
+  });
+
+  // Fallback - send after delays
+  setTimeout(sendProductData, 100);
+  setTimeout(sendProductData, 1000);
+
+  // Listen for cart messages from iframe
+  window.addEventListener('message', function(event) {
+    console.log('[Shopify] Message received:', event.data.type);
+    
+    if (event.data.type === 'ADD_TO_CART') {
+      console.log('[Shopify] Cart message data:', event.data);
+      const { variantId, quantity, properties, designImageUrl, checkout } = event.data;
+      addToCart(variantId, quantity, properties, designImageUrl, checkout);
+    }
+  });
+
+  // Add to cart function using Shopify Cart API
+  function addToCart(variantId, quantity = 1, properties = {}, designImageUrl = '', checkout = false) {
+    console.log('[Shopify] Adding to cart with:', { variantId, quantity, properties, designImageUrl, checkout });
+
+    // Extract price from properties for display
+    const totalPrice = properties['Total Price'] || '0.00';
+    const unitPrice = properties['Price Per Unit'] || '0.00';
+    
+    fetch({{ shop.cart_add_url | json }}, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({
+        id: variantId,
+        quantity: quantity,
+        properties: properties
+      })
+    })
+    .then(response => {
+      console.log('[Shopify] Cart response status:', response.status);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('[Shopify] Cart add success:', data);
+      console.log('[Shopify] Item total price:', totalPrice, 'Unit price:', unitPrice);
+      
+      iframe.contentWindow.postMessage({
+        type: 'CART_SUCCESS',
+        success: true,
+        itemPrice: unitPrice,
+        totalPrice: totalPrice,
+        imageUrl: designImageUrl
+      }, '*');
+      
+      // Only redirect to checkout if explicitly requested
+      if (checkout) {
+        window.location.href = {{ shop.checkout_url | json }};
+      }
+      // Otherwise just stay on the page - cart is updated via AJAX
+    })
+    .catch(error => {
+      console.error('[Shopify] Cart error:', error);
+      iframe.contentWindow.postMessage({
+        type: 'CART_ERROR',
+        success: false,
+        error: error.message
+      }, '*');
+    });
+  }
+})();
+</script>

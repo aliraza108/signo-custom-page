@@ -1,0 +1,146 @@
+{% layout none %}
+
+<style>
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  #designer-iframe {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    border: 0;
+  }
+</style>
+
+<iframe
+  id="designer-iframe"
+  src="https://customsigns.vercel.app/?product={{ product.id }}&variant={{ product.selected_or_first_available_variant.id }}">
+</iframe>
+
+<script>
+  (function() {
+    const iframe = document.getElementById('designer-iframe');
+    
+    function sendProductData() {
+      if (!iframe || !iframe.contentWindow) {
+        console.log('[Shopify] Iframe not ready');
+        return;
+      }
+      
+      const productData = {
+        id: {{ product.id | json }},
+        title: {{ product.title | json }},
+        handle: {{ product.handle | json }},
+        variant: {
+          id: {{ product.selected_or_first_available_variant.id | json }},
+          price: {{ product.selected_or_first_available_variant.price | json }}
+        },
+        metafields: {
+          {% if product.metafields.custom.materials %}
+          materials: {{ product.metafields.custom.materials | json }},
+          {% endif %}
+          {% if product.metafields.custom.sizes %}
+          sizes: {{ product.metafields.custom.sizes | json }},
+          {% endif %}
+          {% if product.metafields.custom.description %}
+          description: {{ product.metafields.custom.description | json }},
+          {% endif %}
+          {% if product.metafields.custom.price_per_sqft %}
+          price_per_sqft: {{ product.metafields.custom.price_per_sqft | json }}
+          {% endif %}
+        }
+      };
+      
+      console.log('[Shopify] Sending product data:', productData);
+      
+      try {
+        iframe.contentWindow.postMessage({
+          type: 'SHOPIFY_PRODUCT_DATA',
+          payload: productData
+        }, '*');
+        console.log('[Shopify] Data sent successfully');
+      } catch (e) {
+        console.error('[Shopify] Error:', e);
+      }
+    }
+    
+    // Wait for iframe to load
+    iframe.addEventListener('load', function() {
+      console.log('[Shopify] Iframe loaded');
+      setTimeout(sendProductData, 100);
+      setTimeout(sendProductData, 500);
+      setTimeout(sendProductData, 1000);
+    });
+    
+    // Also send immediately if already loaded
+    if (iframe.readyState === 'complete') {
+      sendProductData();
+    }
+
+    /* ========= RECEIVE ADD TO CART ========= */
+    window.addEventListener("message", async function(event) {
+      if (!event.data || event.data.type !== "ADD_TO_CART") return;
+
+      try {
+        const cartData = {
+          id: event.data.variantId,
+          quantity: event.data.quantity || 1,
+          properties: event.data.properties || {}
+        };
+
+        // Add custom image if provided
+        if (event.data.customImage) {
+          cartData.properties['_customImage'] = event.data.customImage;
+        }
+
+        const response = await fetch("/cart/add.js", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(cartData)
+        });
+
+        if (!response.ok) throw new Error('Failed to add to cart');
+
+        const result = await response.json();
+        console.log('[Shopify] Added to cart:', result);
+
+        // Refresh cart
+        const cartResponse = await fetch('/cart.js');
+        const cart = await cartResponse.json();
+
+        document.documentElement.dispatchEvent(
+          new CustomEvent('cart:refresh', { bubbles: true })
+        );
+
+        iframe.contentWindow.postMessage({
+          type: 'CART_UPDATED',
+          payload: { success: true, cart: cart }
+        }, '*');
+
+        // Show notification
+        var note = document.createElement('div');
+        note.style.cssText = 'position:fixed;top:20px;right:20px;background:#000;color:#fff;padding:15px 20px;border-radius:5px;z-index:9999;';
+        note.textContent = 'Added to cart!';
+        document.body.appendChild(note);
+        setTimeout(function() { note.remove(); }, 3000);
+
+        // Redirect to checkout if requested
+        if (event.data.checkout) {
+          window.location.href = '/checkout';
+        }
+
+      } catch (err) {
+        console.error("[Shopify] Cart failed:", err);
+        iframe.contentWindow.postMessage({
+          type: 'CART_ERROR',
+          payload: { success: false, error: err.message }
+        }, '*');
+      }
+    });
+  })();
+</script>

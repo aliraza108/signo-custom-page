@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ page.title }}</title>
+  {{ content_for_header }}
+  <style>
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      height: 100%;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    #designer-iframe {
+      width: 100%;
+      min-height: 100vh;
+      border: none;
+      display: block;
+    }
+
+    body::after {
+      content: '';
+      display: block;
+      height: 100px;
+    }
+  </style>
+</head>
+<body>
+  <iframe
+    id="designer-iframe"
+    src="https://customsigns.vercel.app/?product={{ product.id }}&variant={{ product.selected_or_first_available_variant.id }}"
+  ></iframe>
+
+  <script>
+    const iframe = document.getElementById('designer-iframe');
+    
+    function resizeIframe() {
+      const extra = 100;
+      iframe.style.height = (window.innerHeight + extra) + 'px';
+    }
+    
+    // Send product data with detailed logging
+    function sendProductDataToIframe() {
+      if (!iframe || !iframe.contentWindow) {
+        console.log('[Shopify] Iframe not ready yet');
+        return;
+      }
+      
+      const productData = {
+        id: {{ product.id | json }},
+        title: {{ product.title | json }},
+        handle: {{ product.handle | json }},
+        selected_or_first_available_variant: {
+          id: {{ product.selected_or_first_available_variant.id | json }},
+          price: {{ product.selected_or_first_available_variant.price | json }},
+        },
+        metafields: {{ product.metafields | json }},
+        images: {{ product.images | map: 'src' | json }}
+      };
+      
+      console.log('[Shopify] Sending product data to iframe');
+      console.log('[Shopify] Product ID:', productData.id);
+      console.log('[Shopify] Variant ID:', productData.selected_or_first_available_variant.id);
+      console.log('[Shopify] Metafields count:', productData.metafields ? productData.metafields.length : 0);
+      console.log('[Shopify] Full product data:', productData);
+      
+      try {
+        iframe.contentWindow.postMessage({
+          type: 'SHOPIFY_PRODUCT_DATA',
+          product: productData
+        }, '*');
+        console.log('[Shopify] postMessage sent successfully');
+      } catch (e) {
+        console.error('[Shopify] Error sending product data:', e);
+      }
+    }
+    
+    // Wait for iframe to load
+    function onIframeReady() {
+      console.log('[Shopify] Iframe loaded, sending data...');
+      sendProductDataToIframe();
+      setTimeout(() => sendProductDataToIframe(), 100);
+      setTimeout(() => sendProductDataToIframe(), 500);
+      setTimeout(() => sendProductDataToIframe(), 1000);
+    }
+    
+    // Check iframe readiness
+    if (iframe.contentWindow) {
+      console.log('[Shopify] Iframe already has contentWindow');
+      iframe.addEventListener('load', onIframeReady);
+      onIframeReady();
+    } else {
+      console.log('[Shopify] Waiting for iframe to load...');
+      iframe.addEventListener('load', onIframeReady);
+    }
+    
+    // Also try when window loads
+    window.addEventListener('load', () => {
+      console.log('[Shopify] Window load event');
+      resizeIframe();
+      setTimeout(() => sendProductDataToIframe(), 100);
+    });
+    
+    window.addEventListener('resize', resizeIframe);
+  </script>
+</body>
+</html>
