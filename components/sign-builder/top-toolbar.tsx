@@ -306,6 +306,22 @@ export function TopToolbar() {
     return () => window.removeEventListener('message', handler)
   }, [])
 
+  const postAddToCartMessage = useCallback((payload: Record<string, unknown>) => {
+    let sent = false
+
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage(payload, '*')
+      sent = true
+    }
+
+    if (window.top && window.top !== window.parent && window.top !== window) {
+      window.top.postMessage(payload, '*')
+      sent = true
+    }
+
+    return sent
+  }, [])
+
   // Add to cart handler - sends message to parent Shopify window
   const handleAddToCart = useCallback(async () => {
     setIsAddingToCart(true)
@@ -334,23 +350,24 @@ export function TopToolbar() {
       const { layers, canvasPixelWidth, canvasPixelHeight } = buildLayerData()
       const customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
 
-      if (window.top && window.top !== window) {
-        window.top.postMessage({
-          type: 'ADD_TO_CART',
-          variantId: variantId,
-          quantity: quantity,
-          layerData: layers,
-          customImage,
-          canvasWidth: canvasPixelWidth,
-          canvasHeight: canvasPixelHeight,
-          material: resolvedMaterial,
-          size: `${canvasWidth}" x ${canvasHeight}" (in)`,
-          sides: sides === 2 ? '2 Sides' : '1 Side',
-          qty: quantity,
-          unitPrice,
-          checkout: false,
-        }, '*')
-      } else {
+      const svgFallback = layers.find((layer) => typeof layer?.svgString === 'string' && layer.svgString.length > 0)?.svgString || null
+      const sent = postAddToCartMessage({
+        type: 'ADD_TO_CART',
+        variantId: variantId,
+        quantity: quantity,
+        layerData: layers,
+        svgString: svgFallback,
+        customImage,
+        canvasWidth: canvasPixelWidth,
+        canvasHeight: canvasPixelHeight,
+        material: resolvedMaterial,
+        size: `${canvasWidth}" x ${canvasHeight}" (in)`,
+        sides: sides === 2 ? '2 Sides' : '1 Side',
+        qty: quantity,
+        unitPrice,
+        checkout: false,
+      })
+      if (!sent) {
         setCartStatus('error')
         setCartError('Designer must be opened inside Shopify iframe')
         setIsAddingToCart(false)
@@ -361,7 +378,7 @@ export function TopToolbar() {
       setCartError(error instanceof Error ? error.message : 'Unknown error')
       setIsAddingToCart(false)
     }
-  }, [variantId, objects, canvasWidth, canvasHeight, quantity, pricePerSqft, sides, calcPrice, buildLayerData, resolvedMaterial])
+  }, [variantId, objects, canvasWidth, canvasHeight, quantity, pricePerSqft, sides, calcPrice, buildLayerData, resolvedMaterial, postAddToCartMessage])
 
   const handleBuyNow = useCallback(async () => {
     setIsCheckingOut(true)
@@ -389,23 +406,24 @@ export function TopToolbar() {
       const { layers, canvasPixelWidth, canvasPixelHeight } = buildLayerData()
       const customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
 
-      if (window.top && window.top !== window) {
-        window.top.postMessage({
-          type: 'ADD_TO_CART',
-          variantId: variantId,
-          quantity: quantity,
-          layerData: layers,
-          customImage,
-          canvasWidth: canvasPixelWidth,
-          canvasHeight: canvasPixelHeight,
-          material: resolvedMaterial,
-          size: `${canvasWidth}" x ${canvasHeight}" (in)`,
-          sides: sides === 2 ? '2 Sides' : '1 Side',
-          qty: quantity,
-          unitPrice,
-          checkout: true,
-        }, '*')
-      } else {
+      const svgFallback = layers.find((layer) => typeof layer?.svgString === 'string' && layer.svgString.length > 0)?.svgString || null
+      const sent = postAddToCartMessage({
+        type: 'ADD_TO_CART',
+        variantId: variantId,
+        quantity: quantity,
+        layerData: layers,
+        svgString: svgFallback,
+        customImage,
+        canvasWidth: canvasPixelWidth,
+        canvasHeight: canvasPixelHeight,
+        material: resolvedMaterial,
+        size: `${canvasWidth}" x ${canvasHeight}" (in)`,
+        sides: sides === 2 ? '2 Sides' : '1 Side',
+        qty: quantity,
+        unitPrice,
+        checkout: true,
+      })
+      if (!sent) {
         setCartStatus('error')
         setCartError('Designer must be opened inside Shopify iframe')
         setIsCheckingOut(false)
@@ -420,7 +438,7 @@ export function TopToolbar() {
         setIsCheckingOut(false)
       }
     }
-  }, [variantId, objects, canvasWidth, canvasHeight, quantity, pricePerSqft, sides, calcPrice, buildLayerData, resolvedMaterial])
+  }, [variantId, objects, canvasWidth, canvasHeight, quantity, pricePerSqft, sides, calcPrice, buildLayerData, resolvedMaterial, postAddToCartMessage])
 
   const saveProject = () => {
     const data = getDesignData()
