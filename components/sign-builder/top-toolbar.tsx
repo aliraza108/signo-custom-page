@@ -190,6 +190,25 @@ async function exportFullDesign(layers: any[], width: number, height: number) {
   return out.toDataURL('image/png', 1.0)
 }
 
+async function uploadDesignImageToBackend(dataUrl: string) {
+  if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+    throw new Error('Invalid design image data')
+  }
+  const blob = await (await fetch(dataUrl)).blob()
+  const fd = new FormData()
+  fd.append('image', blob, `design-${Date.now()}.png`)
+
+  const res = await fetch('/api/upload-design', {
+    method: 'POST',
+    body: fd,
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok || !json?.url) {
+    throw new Error(json?.error || json?.message || 'Failed to upload design image')
+  }
+  return String(json.url)
+}
+
 export function TopToolbar() {
   const {
     zoom,
@@ -349,6 +368,10 @@ export function TopToolbar() {
 
       const { layers, canvasPixelWidth, canvasPixelHeight } = buildLayerData()
       const customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
+      const designImageUrl = await uploadDesignImageToBackend(customImage)
+      if (!designImageUrl) {
+        throw new Error('Failed to create design image URL')
+      }
 
       const svgFallback = layers.find((layer) => typeof layer?.svgString === 'string' && layer.svgString.length > 0)?.svgString || null
       const sent = postAddToCartMessage({
@@ -358,6 +381,8 @@ export function TopToolbar() {
         layerData: layers,
         svgString: svgFallback,
         customImage,
+        designImageUrl,
+        imageUrl: designImageUrl,
         canvasWidth: canvasPixelWidth,
         canvasHeight: canvasPixelHeight,
         material: resolvedMaterial,
@@ -406,6 +431,10 @@ export function TopToolbar() {
       const unitPrice = Number.parseFloat((unitBase * sidesMultiplier).toFixed(2))
       const { layers, canvasPixelWidth, canvasPixelHeight } = buildLayerData()
       const customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
+      const designImageUrl = await uploadDesignImageToBackend(customImage)
+      if (!designImageUrl) {
+        throw new Error('Failed to create design image URL')
+      }
 
       const svgFallback = layers.find((layer) => typeof layer?.svgString === 'string' && layer.svgString.length > 0)?.svgString || null
       const sent = postAddToCartMessage({
@@ -415,6 +444,8 @@ export function TopToolbar() {
         layerData: layers,
         svgString: svgFallback,
         customImage,
+        designImageUrl,
+        imageUrl: designImageUrl,
         canvasWidth: canvasPixelWidth,
         canvasHeight: canvasPixelHeight,
         material: resolvedMaterial,
