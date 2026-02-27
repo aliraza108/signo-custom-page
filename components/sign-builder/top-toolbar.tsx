@@ -364,6 +364,7 @@ export function TopToolbar() {
         size: `${canvasWidth}" x ${canvasHeight}" (in)`,
         sides: sides === 2 ? '2 Sides' : '1 Side',
         qty: quantity,
+        price: unitPrice,
         unitPrice,
         checkout: false,
       })
@@ -420,6 +421,7 @@ export function TopToolbar() {
         size: `${canvasWidth}" x ${canvasHeight}" (in)`,
         sides: sides === 2 ? '2 Sides' : '1 Side',
         qty: quantity,
+        price: unitPrice,
         unitPrice,
         checkout: true,
       })
