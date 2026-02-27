@@ -37,6 +37,9 @@
 <script>
 (function() {
   'use strict';
+  const CLOUDINARY_UPLOAD_URL = 'https://api.cloudinary.com/v1_1/dzeolercm/image/upload';
+  const CLOUDINARY_UPLOAD_PRESET = 'sign_designs';
+  const CLOUDINARY_FOLDER = 'sign-designs';
   
   const iframe = document.getElementById('designer-iframe');
   
@@ -94,19 +97,63 @@
     
     if (event.data.type === 'ADD_TO_CART') {
       console.log('[Shopify] Cart message data:', event.data);
-      const { variantId, quantity, properties, designImageUrl, checkout } = event.data;
-      addToCart(variantId, quantity, properties, designImageUrl, checkout);
+      addToCart(event.data).catch(function(error) {
+        console.error('[Shopify] Cart error:', error);
+        iframe.contentWindow.postMessage({
+          type: 'CART_ERROR',
+          payload: { success: false, error: error.message || 'Failed to add to cart' }
+        }, '*');
+      });
     }
   });
 
-  // Add to cart function using Shopify Cart API
-  function addToCart(variantId, quantity = 1, properties = {}, designImageUrl = '', checkout = false) {
-    console.log('[Shopify] Adding to cart with:', { variantId, quantity, properties, designImageUrl, checkout });
+  async function uploadDesignToCloudinary(dataUrl) {
+    if (!dataUrl || typeof dataUrl !== 'string') return null;
+    if (!dataUrl.startsWith('data:image/')) return null;
+    const blob = await (await fetch(dataUrl)).blob();
+    const fd = new FormData();
+    fd.append('file', blob, 'design.png');
+    fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    fd.append('folder', CLOUDINARY_FOLDER);
+    const res = await fetch(CLOUDINARY_UPLOAD_URL, { method: 'POST', body: fd });
+    const json = await res.json();
+    if (!res.ok || !json.secure_url) {
+      throw new Error((json && json.error && json.error.message) || 'Design image upload failed');
+    }
+    return json.secure_url;
+  }
 
-    // Extract price from properties for display
-    const totalPrice = properties['Total Price'] || '0.00';
-    const unitPrice = properties['Price Per Unit'] || '0.00';
-    
+  async function resolveDesignImageUrl(data) {
+    if (typeof data.designImageUrl === 'string' && /^https?:\/\//i.test(data.designImageUrl)) return data.designImageUrl;
+    if (typeof data.imageUrl === 'string' && /^https?:\/\//i.test(data.imageUrl)) return data.imageUrl;
+    if (typeof data.customImage === 'string' && data.customImage.startsWith('data:image/')) {
+      return await uploadDesignToCloudinary(data.customImage);
+    }
+    return null;
+  }
+
+  // Add to cart function using Shopify Cart API
+  async function addToCart(data) {
+    const variantId = data.variantId;
+    const quantity = data.quantity || 1;
+    const checkout = !!data.checkout;
+    const rawPrice = data.price != null ? data.price : data.unitPrice;
+
+    const imageUrl = await resolveDesignImageUrl(data);
+    if (!imageUrl) {
+      throw new Error('No design image URL available');
+    }
+
+    const properties = {};
+    if (data.material) properties['Material'] = data.material;
+    if (data.size) properties['Size'] = data.size;
+    if (data.sides) properties['Sides'] = data.sides;
+    if (data.qty != null) properties['Quantity'] = String(data.qty);
+    if (rawPrice != null && rawPrice !== '') properties['Price'] = '$' + Number(rawPrice).toFixed(2);
+    properties['Design Image'] = imageUrl;
+
+    console.log('[Shopify] Adding to cart with:', { variantId, quantity, properties, checkout });
+
     fetch({{ shop.cart_add_url | json }}, {
       method: 'POST',
       headers: {
@@ -128,14 +175,10 @@
     })
     .then(data => {
       console.log('[Shopify] Cart add success:', data);
-      console.log('[Shopify] Item total price:', totalPrice, 'Unit price:', unitPrice);
       
       iframe.contentWindow.postMessage({
-        type: 'CART_SUCCESS',
-        success: true,
-        itemPrice: unitPrice,
-        totalPrice: totalPrice,
-        imageUrl: designImageUrl
+        type: 'CART_UPDATED',
+        payload: { success: true, imageUrl: imageUrl, itemKey: data.key }
       }, '*');
       
       // Only redirect to checkout if explicitly requested
@@ -148,8 +191,7 @@
       console.error('[Shopify] Cart error:', error);
       iframe.contentWindow.postMessage({
         type: 'CART_ERROR',
-        success: false,
-        error: error.message
+        payload: { success: false, error: error.message }
       }, '*');
     });
   }

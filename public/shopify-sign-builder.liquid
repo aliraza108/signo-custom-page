@@ -25,6 +25,35 @@
 </style>
 
 <script>
+  const CLOUDINARY_UPLOAD_URL = 'https://api.cloudinary.com/v1_1/dzeolercm/image/upload';
+  const CLOUDINARY_UPLOAD_PRESET = 'sign_designs';
+  const CLOUDINARY_FOLDER = 'sign-designs';
+
+  async function uploadDesignToCloudinary(dataUrl) {
+    if (!dataUrl || typeof dataUrl !== 'string') return null;
+    if (!dataUrl.startsWith('data:image/')) return null;
+    const blob = await (await fetch(dataUrl)).blob();
+    const fd = new FormData();
+    fd.append('file', blob, 'design.png');
+    fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    fd.append('folder', CLOUDINARY_FOLDER);
+    const res = await fetch(CLOUDINARY_UPLOAD_URL, { method: 'POST', body: fd });
+    const json = await res.json();
+    if (!res.ok || !json.secure_url) {
+      throw new Error((json && json.error && json.error.message) || 'Design image upload failed');
+    }
+    return json.secure_url;
+  }
+
+  async function resolveDesignImageUrl(data) {
+    if (typeof data.designImageUrl === 'string' && /^https?:\/\//i.test(data.designImageUrl)) return data.designImageUrl;
+    if (typeof data.imageUrl === 'string' && /^https?:\/\//i.test(data.imageUrl)) return data.imageUrl;
+    if (typeof data.customImage === 'string' && data.customImage.startsWith('data:image/')) {
+      return await uploadDesignToCloudinary(data.customImage);
+    }
+    return null;
+  }
+
   // Pass product data to iframe with retries
   function sendProductDataToIframe() {
     const iframe = document.getElementById('designer-iframe');
@@ -115,15 +144,25 @@
       (async function() {
         const iframe = document.getElementById('designer-iframe');
         try {
+          const imageUrl = await resolveDesignImageUrl(event.data);
+          if (!imageUrl) {
+            throw new Error('No design image URL available');
+          }
+
+          const rawPrice = event.data.price != null ? event.data.price : event.data.unitPrice;
+          const props = {};
+          if (event.data.material) props['Material'] = event.data.material;
+          if (event.data.size) props['Size'] = event.data.size;
+          if (event.data.sides) props['Sides'] = event.data.sides;
+          if (event.data.qty != null) props['Quantity'] = String(event.data.qty);
+          if (rawPrice != null && rawPrice !== '') props['Price'] = '$' + Number(rawPrice).toFixed(2);
+          props['Design Image'] = imageUrl;
+
           const cartData = {
             id: event.data.variantId,
             quantity: event.data.quantity || 1,
-            properties: event.data.properties || {}
+            properties: props
           };
-
-          if (event.data.customImage) {
-            cartData.properties['_customImage'] = event.data.customImage;
-          }
 
           const response = await fetch("/cart/add.js", {
             method: "POST",
@@ -146,15 +185,9 @@
           if (iframe && iframe.contentWindow) {
             iframe.contentWindow.postMessage({
               type: 'CART_UPDATED',
-              payload: { success: true, cart: cart }
+              payload: { success: true, cart: cart, imageUrl: imageUrl }
             }, '*');
           }
-
-          var note = document.createElement('div');
-          note.style.cssText = 'position:fixed;top:20px;right:20px;background:#000;color:#fff;padding:15px 20px;border-radius:5px;z-index:9999;';
-          note.textContent = 'Added to cart!';
-          document.body.appendChild(note);
-          setTimeout(function() { note.remove(); }, 3000);
 
           if (event.data.checkout) {
             window.location.href = '/checkout';
