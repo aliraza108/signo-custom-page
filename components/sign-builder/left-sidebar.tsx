@@ -168,6 +168,7 @@ export function LeftSidebar() {
     const clean = raw
       .replace(/["'`]/g, '')
       .replace(/\s*(inches|inch|in\.)\s*/gi, ' ')
+      .replace(/[×]/g, 'x')
       .replace(/\s+/g, ' ')
       .trim()
     const match = clean.match(/([\d.]+)\s*[xX*]\s*([\d.]+)/)
