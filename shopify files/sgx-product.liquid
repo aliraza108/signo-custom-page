@@ -489,6 +489,7 @@ function applyPresetToInputs(str){
   const clean = String(str || '')
     .replace(/["'`]/g,'')
     .replace(/\s*(inches|inch|in\.)\s*/gi,' ')
+    .replace(/[×]/g,'x')
     .replace(/\s+/g,' ')
     .trim();
   const m = clean.match(/([\d.]+)\s*[xX*]\s*([\d.]+)/);
@@ -684,6 +685,12 @@ function buildProps(){
   if(cv) props['Price Per Unit']='$'+(cv.price/100).toFixed(2);
   /* ONE image property — CDN URL only */
   if(uploadedUrl)     props['Design Image']  =uploadedUrl;
+  delete props['Custom Image'];
+  delete props['_customImage'];
+  delete props['_image'];
+  delete props['custom_image'];
+  delete props['design_image'];
+  delete props['customImage'];
   return props;
 }
 function refreshCartCount(){
