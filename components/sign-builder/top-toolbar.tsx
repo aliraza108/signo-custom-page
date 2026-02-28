@@ -1,5 +1,5 @@
 "use client"
-// Cart sends: Product, Material, Size, Sides, Design Image
+// Cart sends: Product, Material, Size, Sides, Price, Design Image
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useSignBuilder } from '@/lib/sign-builder-context'
 import type { CanvasObject } from '@/lib/sign-builder-types'
@@ -262,7 +262,7 @@ export function TopToolbar() {
   const [cartStatus, setCartStatus] = useState<'success' | 'error' | null>(null)
   const [cartError, setCartError] = useState('')
 
-  const { variantId, pricePerSqft, materials } = useShopifyData()
+  const { variantId, pricePerSqft, materials, variantPrice } = useShopifyData()
 
   const zoomLevels = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3]
 
@@ -391,6 +391,8 @@ export function TopToolbar() {
       const customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
       const designImageUrl = await uploadDesignImageToBackend(customImage)
 
+      const displayPrice = designPrice > 0 ? designPrice : variantPrice && variantPrice > 0 ? variantPrice : 0
+      const normalizedPrice = Number(displayPrice.toFixed(2))
       const svgFallback = layers.find((layer) => typeof layer?.svgString === 'string' && layer.svgString.length > 0)?.svgString || null
       const sent = postAddToCartMessage({
         type: 'ADD_TO_CART',
@@ -406,6 +408,8 @@ export function TopToolbar() {
         size: `${canvasWidth}" x ${canvasHeight}" (in)`,
         sides: sides === 2 ? '2 Sides' : '1 Side',
         qty: quantity,
+        price: normalizedPrice,
+        unitPrice: normalizedPrice,
         checkout: false,
       })
       if (!sent) {
@@ -419,7 +423,19 @@ export function TopToolbar() {
       setCartError(error instanceof Error ? error.message : 'Unknown error')
       setIsAddingToCart(false)
     }
-  }, [variantId, objects, canvasWidth, canvasHeight, quantity, sides, buildLayerData, resolvedMaterial, postAddToCartMessage])
+  }, [
+    variantId,
+    objects,
+    canvasWidth,
+    canvasHeight,
+    quantity,
+    sides,
+    buildLayerData,
+    resolvedMaterial,
+    postAddToCartMessage,
+    designPrice,
+    variantPrice,
+  ])
 
   const handleBuyNow = useCallback(async () => {
     setIsCheckingOut(true)
@@ -460,6 +476,8 @@ export function TopToolbar() {
         size: `${canvasWidth}" x ${canvasHeight}" (in)`,
         sides: sides === 2 ? '2 Sides' : '1 Side',
         qty: quantity,
+        price: normalizedPrice,
+        unitPrice: normalizedPrice,
         checkout: true,
       })
       if (!sent) {
@@ -477,7 +495,19 @@ export function TopToolbar() {
         setIsCheckingOut(false)
       }
     }
-  }, [variantId, objects, canvasWidth, canvasHeight, quantity, sides, buildLayerData, resolvedMaterial, postAddToCartMessage])
+  }, [
+    variantId,
+    objects,
+    canvasWidth,
+    canvasHeight,
+    quantity,
+    sides,
+    buildLayerData,
+    resolvedMaterial,
+    postAddToCartMessage,
+    designPrice,
+    variantPrice,
+  ])
 
   const saveProject = () => {
     const data = getDesignData()

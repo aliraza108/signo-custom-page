@@ -86,25 +86,27 @@
     window.addEventListener("message", async function(event) {
       if (!event.data || event.data.type !== "ADD_TO_CART") return;
 
-      try {
-        const properties = event.data.properties || {};
-        if (event.data.material) properties['Material'] = event.data.material;
-        if (event.data.size) properties['Size'] = event.data.size;
-        if (event.data.sides) properties['Sides'] = event.data.sides;
-        if (event.data.qty != null) properties['Quantity'] = String(event.data.qty);
+        try {
+          const properties = event.data.properties || {};
+          const rawPrice = event.data.price != null ? event.data.price : event.data.unitPrice;
+          if (event.data.material) properties['Material'] = event.data.material;
+          if (event.data.size) properties['Size'] = event.data.size;
+          if (event.data.sides) properties['Sides'] = event.data.sides;
+          if (event.data.qty != null) properties['Quantity'] = String(event.data.qty);
 
         const resolvedImageUrl =
           (typeof event.data.designImageUrl === 'string' && /^https?:\/\//i.test(event.data.designImageUrl) && event.data.designImageUrl) ||
           (typeof event.data.imageUrl === 'string' && /^https?:\/\//i.test(event.data.imageUrl) && event.data.imageUrl) ||
           '';
-        if (resolvedImageUrl) {
-          properties['Design Image'] = resolvedImageUrl;
-          properties['_Design Image URL'] = resolvedImageUrl;
-        }
+          if (resolvedImageUrl) {
+            properties['Design Image'] = resolvedImageUrl;
+            properties['_Design Image URL'] = resolvedImageUrl;
+          }
+          if (rawPrice != null && rawPrice !== '') properties['Price'] = '$' + Number(rawPrice).toFixed(2);
 
-        const cartData = {
-          id: event.data.variantId,
-          quantity: event.data.quantity || 1,
+          const cartData = {
+            id: event.data.variantId,
+            quantity: event.data.quantity || 1,
           properties
         };
 

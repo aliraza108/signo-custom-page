@@ -33,6 +33,7 @@ export function useShopifyData() {
   const [materials, setMaterials] = useState<string[]>([])
   const [pricePerSqft, setPricePerSqft] = useState<number | null>(null)
   const [variantId, setVariantId] = useState<number | null>(null)
+  const [variantPrice, setVariantPrice] = useState<number | null>(null)
 
   useEffect(() => {
     const applyPayload = (payload?: ShopifyPayload) => {
@@ -63,6 +64,12 @@ export function useShopifyData() {
         const parsedVariantId = Number(rawVariantId)
         if (Number.isFinite(parsedVariantId)) setVariantId(parsedVariantId)
       }
+
+      const rawVariantPrice = payload.variant?.price
+      if (rawVariantPrice != null && rawVariantPrice !== '') {
+        const parsedPrice = Number(rawVariantPrice)
+        if (Number.isFinite(parsedPrice)) setVariantPrice(parsedPrice)
+      }
     }
 
     const handleMessage = (event: MessageEvent) => {
@@ -92,5 +99,5 @@ export function useShopifyData() {
     }
   }, [])
 
-  return { sizes, materials, pricePerSqft, variantId }
+  return { sizes, materials, pricePerSqft, variantId, variantPrice }
 }

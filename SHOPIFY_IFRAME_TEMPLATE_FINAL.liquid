@@ -98,6 +98,7 @@
 
         try {
           const properties = event.data.properties || {};
+          const rawPrice = event.data.price != null ? event.data.price : event.data.unitPrice;
           if (event.data.material) properties['Material'] = event.data.material;
           if (event.data.size) properties['Size'] = event.data.size;
           if (event.data.sides) properties['Sides'] = event.data.sides;
@@ -111,6 +112,7 @@
             properties['Design Image'] = resolvedImageUrl;
             properties['_Design Image URL'] = resolvedImageUrl;
           }
+          if (rawPrice != null && rawPrice !== '') properties['Price'] = '$' + Number(rawPrice).toFixed(2);
 
           const cartData = {
             id: event.data.variantId,

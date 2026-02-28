@@ -143,10 +143,12 @@
     }
 
     const properties = {};
+    const rawPrice = data.price != null ? data.price : data.unitPrice;
     if (data.material) properties['Material'] = data.material;
     if (data.size) properties['Size'] = data.size;
     if (data.sides) properties['Sides'] = data.sides;
     if (data.qty != null) properties['Quantity'] = String(data.qty);
+    if (rawPrice != null && rawPrice !== '') properties['Price'] = '$' + Number(rawPrice).toFixed(2);
     properties['Design Image'] = imageUrl;
     properties['_Design Image URL'] = imageUrl;
 

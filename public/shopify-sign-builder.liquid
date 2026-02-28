@@ -149,11 +149,13 @@
             throw new Error('No design image URL available');
           }
 
+          const rawPrice = event.data.price != null ? event.data.price : event.data.unitPrice;
           const props = {};
           if (event.data.material) props['Material'] = event.data.material;
           if (event.data.size) props['Size'] = event.data.size;
           if (event.data.sides) props['Sides'] = event.data.sides;
           if (event.data.qty != null) props['Quantity'] = String(event.data.qty);
+          if (rawPrice != null && rawPrice !== '') props['Price'] = '$' + Number(rawPrice).toFixed(2);
           props['Design Image'] = imageUrl;
           props['_Design Image URL'] = imageUrl;
 
