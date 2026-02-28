@@ -44,7 +44,7 @@ async function waitForFileUrl(
   storeDomain: string,
   accessToken: string,
   fileId: string,
-  attempts = 12,
+  attempts = 24,
   delayMs = 1000
 ) {
   const fileNodeQuery = `
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
         {
           filename: file.name || `design-${Date.now()}.png`,
           mimeType: file.type || 'image/png',
-          resource: 'FILE',
+          resource: 'IMAGE',
           httpMethod: 'POST',
           fileSize: String(file.size),
         },
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
           files {
             __typename
             ... on GenericFile { id url }
-            ... on MediaImage { id image { url } }
+            ... on MediaImage { id image { url } preview { image { url } } }
           }
           userErrors { field message }
         }

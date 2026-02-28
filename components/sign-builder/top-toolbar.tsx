@@ -212,8 +212,11 @@ async function uploadDesignImageToBackend(dataUrl: string): Promise<string | nul
   if (!res.ok) {
     const msg = String(json?.error || json?.message || '')
     if (res.status === 502 && /still processing|no public url/i.test(msg)) {
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      ;({ res, json } = await postUpload())
+      for (let i = 0; i < 3; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1500 + i * 500))
+        ;({ res, json } = await postUpload())
+        if (res.ok) break
+      }
     }
   }
 
@@ -460,6 +463,8 @@ export function TopToolbar() {
       const { layers, canvasPixelWidth, canvasPixelHeight } = buildLayerData()
       const customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
       const designImageUrl = await uploadDesignImageToBackend(customImage)
+      const displayPrice = designPrice > 0 ? designPrice : variantPrice && variantPrice > 0 ? variantPrice : 0
+      const normalizedPrice = Number(displayPrice.toFixed(2))
 
       const svgFallback = layers.find((layer) => typeof layer?.svgString === 'string' && layer.svgString.length > 0)?.svgString || null
       const sent = postAddToCartMessage({

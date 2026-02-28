@@ -40,6 +40,10 @@
   const CLOUDINARY_UPLOAD_URL = 'https://api.cloudinary.com/v1_1/dzeolercm/image/upload';
   const CLOUDINARY_UPLOAD_PRESET = 'sign_designs';
   const CLOUDINARY_FOLDER = 'sign-designs';
+  const STOREFRONT_API_VERSION = '2025-01';
+  const STOREFRONT_API_TOKEN = {{ settings.storefront_api_token | default: '' | json }};
+  const STOREFRONT_API_URL = '/api/' + STOREFRONT_API_VERSION + '/graphql.json';
+  const STOREFRONT_CART_ID_KEY = 'signo_storefront_cart_id';
   
   const iframe = document.getElementById('designer-iframe');
   
@@ -132,6 +136,122 @@
     return null;
   }
 
+  function toVariantGid(variantId) {
+    const raw = String(variantId || '').trim();
+    if (!raw) return '';
+    if (raw.indexOf('gid://shopify/ProductVariant/') === 0) return raw;
+    const idPart = raw.split('/').pop();
+    return idPart ? ('gid://shopify/ProductVariant/' + idPart) : '';
+  }
+
+  function getStoredCartId() {
+    try {
+      return window.localStorage.getItem(STOREFRONT_CART_ID_KEY) || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function setStoredCartId(cartId) {
+    if (!cartId) return;
+    try {
+      window.localStorage.setItem(STOREFRONT_CART_ID_KEY, cartId);
+    } catch (e) {}
+  }
+
+  function hasStorefrontToken() {
+    return typeof STOREFRONT_API_TOKEN === 'string' && STOREFRONT_API_TOKEN.length > 0;
+  }
+
+  async function storefrontRequest(query, variables) {
+    const res = await fetch(STOREFRONT_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Storefront-Access-Token': STOREFRONT_API_TOKEN
+      },
+      body: JSON.stringify({ query, variables })
+    });
+    const json = await res.json();
+    if (!res.ok || json.errors) {
+      throw new Error((json && json.errors && json.errors[0] && json.errors[0].message) || 'Storefront API request failed');
+    }
+    return json.data || {};
+  }
+
+  function toLineAttributes(props) {
+    return Object.keys(props || {}).map(function(key) {
+      return { key: String(key), value: String(props[key]) };
+    });
+  }
+
+  async function addToStorefrontCart(variantId, quantity, props) {
+    const merchandiseId = toVariantGid(variantId);
+    if (!merchandiseId) {
+      throw new Error('Invalid variant ID for Storefront API');
+    }
+
+    const attributes = toLineAttributes(props);
+    const cartId = getStoredCartId();
+
+    if (cartId) {
+      const addLineMutation = `
+        mutation cartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!) {
+          cartLinesAdd(cartId: $cartId, lines: $lines) {
+            cart {
+              id
+              checkoutUrl
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+      const addData = await storefrontRequest(addLineMutation, {
+        cartId: cartId,
+        lines: [{ merchandiseId: merchandiseId, quantity: quantity, attributes: attributes }]
+      });
+      const addResult = addData.cartLinesAdd;
+      if (addResult && addResult.userErrors && addResult.userErrors.length > 0) {
+        throw new Error(addResult.userErrors[0].message || 'Unable to add line to existing cart');
+      }
+      if (addResult && addResult.cart && addResult.cart.id) {
+        setStoredCartId(addResult.cart.id);
+      }
+      return addResult ? addResult.cart : null;
+    }
+
+    const createMutation = `
+      mutation cartCreate($input: CartInput!) {
+        cartCreate(input: $input) {
+          cart {
+            id
+            checkoutUrl
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+    const createData = await storefrontRequest(createMutation, {
+      input: {
+        lines: [{ merchandiseId: merchandiseId, quantity: quantity, attributes: attributes }]
+      }
+    });
+    const createResult = createData.cartCreate;
+    if (createResult && createResult.userErrors && createResult.userErrors.length > 0) {
+      throw new Error(createResult.userErrors[0].message || 'Unable to create Storefront cart');
+    }
+    if (createResult && createResult.cart && createResult.cart.id) {
+      setStoredCartId(createResult.cart.id);
+    }
+    return createResult ? createResult.cart : null;
+  }
+
   // Add to cart function using Shopify Cart API
   async function addToCart(data) {
     const variantId = data.variantId;
@@ -154,38 +274,51 @@
 
     console.log('[Shopify] Adding to cart with:', { variantId, quantity, properties, checkout });
 
-    fetch({{ shop.cart_add_url | json }}, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
-      },
-      body: JSON.stringify({
-        id: variantId,
-        quantity: quantity,
-        properties: properties
-      })
-    })
-    .then(response => {
+    Promise.resolve()
+    .then(async () => {
+      if (hasStorefrontToken()) {
+        const storefrontCart = await addToStorefrontCart(variantId, quantity, properties);
+        return { storefrontCart: storefrontCart, data: null };
+      }
+      const response = await fetch({{ shop.cart_add_url | json }}, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+          id: variantId,
+          quantity: quantity,
+          properties: properties
+        })
+      });
       console.log('[Shopify] Cart response status:', response.status);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return response.json();
+      const data = await response.json();
+      return { storefrontCart: null, data: data };
     })
-    .then(data => {
-      console.log('[Shopify] Cart add success:', data);
-      
+    .then(({ storefrontCart, data }) => {
+      console.log('[Shopify] Cart add success:', { storefrontCart, data });
+
       iframe.contentWindow.postMessage({
         type: 'CART_UPDATED',
-        payload: { success: true, imageUrl: imageUrl, itemKey: data.key }
+        payload: {
+          success: true,
+          imageUrl: imageUrl,
+          itemKey: data && data.key ? data.key : null,
+          storefrontCart: storefrontCart
+        }
       }, '*');
       
-      // Only redirect to checkout if explicitly requested
       if (checkout) {
-        window.location.href = {{ shop.checkout_url | json }};
+        if (storefrontCart && storefrontCart.checkoutUrl) {
+          window.location.href = storefrontCart.checkoutUrl;
+        } else {
+          window.location.href = {{ shop.checkout_url | json }};
+        }
       }
-      // Otherwise just stay on the page - cart is updated via AJAX
     })
     .catch(error => {
       console.error('[Shopify] Cart error:', error);
