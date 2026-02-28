@@ -1,5 +1,5 @@
 "use client"
-// Cart sends: Product, Material, Size, Sides, Price, Design Image (Cloudinary)
+// Cart sends: Product, Material, Size, Sides, Design Image
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useSignBuilder } from '@/lib/sign-builder-context'
 import type { CanvasObject } from '@/lib/sign-builder-types'
@@ -387,10 +387,6 @@ export function TopToolbar() {
         return
       }
 
-      const unitBase = pricePerSqft ? calcPrice(canvasWidth, canvasHeight, pricePerSqft, 1) : 0
-      const sidesMultiplier = sides === 2 ? 1.5 : 1
-      const unitPrice = Number.parseFloat((unitBase * sidesMultiplier).toFixed(2))
-
       const { layers, canvasPixelWidth, canvasPixelHeight } = buildLayerData()
       const customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
       const designImageUrl = await uploadDesignImageToBackend(customImage)
@@ -410,8 +406,6 @@ export function TopToolbar() {
         size: `${canvasWidth}" x ${canvasHeight}" (in)`,
         sides: sides === 2 ? '2 Sides' : '1 Side',
         qty: quantity,
-        price: unitPrice,
-        unitPrice,
         checkout: false,
       })
       if (!sent) {
@@ -425,7 +419,7 @@ export function TopToolbar() {
       setCartError(error instanceof Error ? error.message : 'Unknown error')
       setIsAddingToCart(false)
     }
-  }, [variantId, objects, canvasWidth, canvasHeight, quantity, pricePerSqft, sides, calcPrice, buildLayerData, resolvedMaterial, postAddToCartMessage])
+  }, [variantId, objects, canvasWidth, canvasHeight, quantity, sides, buildLayerData, resolvedMaterial, postAddToCartMessage])
 
   const handleBuyNow = useCallback(async () => {
     setIsCheckingOut(true)
@@ -447,9 +441,6 @@ export function TopToolbar() {
         return
       }
 
-      const unitBase = pricePerSqft ? calcPrice(canvasWidth, canvasHeight, pricePerSqft, 1) : 0
-      const sidesMultiplier = sides === 2 ? 1.5 : 1
-      const unitPrice = Number.parseFloat((unitBase * sidesMultiplier).toFixed(2))
       const { layers, canvasPixelWidth, canvasPixelHeight } = buildLayerData()
       const customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
       const designImageUrl = await uploadDesignImageToBackend(customImage)
@@ -469,8 +460,6 @@ export function TopToolbar() {
         size: `${canvasWidth}" x ${canvasHeight}" (in)`,
         sides: sides === 2 ? '2 Sides' : '1 Side',
         qty: quantity,
-        price: unitPrice,
-        unitPrice,
         checkout: true,
       })
       if (!sent) {
@@ -488,7 +477,7 @@ export function TopToolbar() {
         setIsCheckingOut(false)
       }
     }
-  }, [variantId, objects, canvasWidth, canvasHeight, quantity, pricePerSqft, sides, calcPrice, buildLayerData, resolvedMaterial, postAddToCartMessage])
+  }, [variantId, objects, canvasWidth, canvasHeight, quantity, sides, buildLayerData, resolvedMaterial, postAddToCartMessage])
 
   const saveProject = () => {
     const data = getDesignData()

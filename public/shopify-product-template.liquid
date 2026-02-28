@@ -137,8 +137,6 @@
     const variantId = data.variantId;
     const quantity = data.quantity || 1;
     const checkout = !!data.checkout;
-    const rawPrice = data.price != null ? data.price : data.unitPrice;
-
     const imageUrl = await resolveDesignImageUrl(data);
     if (!imageUrl) {
       throw new Error('No design image URL available');
@@ -149,8 +147,8 @@
     if (data.size) properties['Size'] = data.size;
     if (data.sides) properties['Sides'] = data.sides;
     if (data.qty != null) properties['Quantity'] = String(data.qty);
-    if (rawPrice != null && rawPrice !== '') properties['Price'] = '$' + Number(rawPrice).toFixed(2);
     properties['Design Image'] = imageUrl;
+    properties['_Design Image URL'] = imageUrl;
 
     console.log('[Shopify] Adding to cart with:', { variantId, quantity, properties, checkout });
 

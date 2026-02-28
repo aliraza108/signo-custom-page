@@ -97,10 +97,25 @@
         if (!event.data || event.data.type !== "ADD_TO_CART") return;
 
         try {
+          const properties = event.data.properties || {};
+          if (event.data.material) properties['Material'] = event.data.material;
+          if (event.data.size) properties['Size'] = event.data.size;
+          if (event.data.sides) properties['Sides'] = event.data.sides;
+          if (event.data.qty != null) properties['Quantity'] = String(event.data.qty);
+
+          const resolvedImageUrl =
+            (typeof event.data.designImageUrl === 'string' && /^https?:\/\//i.test(event.data.designImageUrl) && event.data.designImageUrl) ||
+            (typeof event.data.imageUrl === 'string' && /^https?:\/\//i.test(event.data.imageUrl) && event.data.imageUrl) ||
+            '';
+          if (resolvedImageUrl) {
+            properties['Design Image'] = resolvedImageUrl;
+            properties['_Design Image URL'] = resolvedImageUrl;
+          }
+
           const cartData = {
             id: event.data.variantId,
             quantity: event.data.quantity || 1,
-            properties: event.data.properties || {}
+            properties
           };
 
           // Add custom image if provided
