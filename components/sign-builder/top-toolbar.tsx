@@ -190,19 +190,44 @@ async function exportFullDesign(layers: any[], width: number, height: number) {
   return out.toDataURL('image/png', 1.0)
 }
 
-async function uploadDesignImageToBackend(dataUrl: string) {
+async function uploadDesignImageToBackend(dataUrl: string): Promise<string | null> {
   if (!dataUrl || !dataUrl.startsWith('data:image/')) {
     throw new Error('Invalid design image data')
   }
   const blob = await (await fetch(dataUrl)).blob()
-  const fd = new FormData()
-  fd.append('image', blob, `design-${Date.now()}.png`)
+  const filename = `design-${Date.now()}.png`
 
-  const res = await fetch('/api/upload-design', {
-    method: 'POST',
-    body: fd,
-  })
-  const json = await res.json().catch(() => ({}))
+  const postUpload = async () => {
+    const fd = new FormData()
+    fd.append('image', blob, filename)
+    const res = await fetch('/api/upload-design', {
+      method: 'POST',
+      body: fd,
+    })
+    const json = await res.json().catch(() => ({}))
+    return { res, json }
+  }
+
+  let { res, json } = await postUpload()
+  if (!res.ok) {
+    const msg = String(json?.error || json?.message || '')
+    if (res.status === 502 && /still processing|no public url/i.test(msg)) {
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      ;({ res, json } = await postUpload())
+    }
+  }
+
+  if (res.ok && json?.url) {
+    return String(json.url)
+  }
+
+  const msg = String(json?.error || json?.message || '')
+  if (res.status === 502 && /still processing|no public url/i.test(msg)) {
+    // Non-fatal: Shopify file may not be publicly available yet.
+    // Parent Shopify template can still upload/use customImage directly.
+    return null
+  }
+
   if (!res.ok || !json?.url) {
     throw new Error(json?.error || json?.message || 'Failed to upload design image')
   }
@@ -369,9 +394,6 @@ export function TopToolbar() {
       const { layers, canvasPixelWidth, canvasPixelHeight } = buildLayerData()
       const customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
       const designImageUrl = await uploadDesignImageToBackend(customImage)
-      if (!designImageUrl) {
-        throw new Error('Failed to create design image URL')
-      }
 
       const svgFallback = layers.find((layer) => typeof layer?.svgString === 'string' && layer.svgString.length > 0)?.svgString || null
       const sent = postAddToCartMessage({
@@ -381,8 +403,7 @@ export function TopToolbar() {
         layerData: layers,
         svgString: svgFallback,
         customImage,
-        designImageUrl,
-        imageUrl: designImageUrl,
+        ...(designImageUrl ? { designImageUrl, imageUrl: designImageUrl } : {}),
         canvasWidth: canvasPixelWidth,
         canvasHeight: canvasPixelHeight,
         material: resolvedMaterial,
@@ -432,9 +453,6 @@ export function TopToolbar() {
       const { layers, canvasPixelWidth, canvasPixelHeight } = buildLayerData()
       const customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
       const designImageUrl = await uploadDesignImageToBackend(customImage)
-      if (!designImageUrl) {
-        throw new Error('Failed to create design image URL')
-      }
 
       const svgFallback = layers.find((layer) => typeof layer?.svgString === 'string' && layer.svgString.length > 0)?.svgString || null
       const sent = postAddToCartMessage({
@@ -444,8 +462,7 @@ export function TopToolbar() {
         layerData: layers,
         svgString: svgFallback,
         customImage,
-        designImageUrl,
-        imageUrl: designImageUrl,
+        ...(designImageUrl ? { designImageUrl, imageUrl: designImageUrl } : {}),
         canvasWidth: canvasPixelWidth,
         canvasHeight: canvasPixelHeight,
         material: resolvedMaterial,

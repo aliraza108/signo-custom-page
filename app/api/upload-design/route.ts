@@ -4,6 +4,7 @@ const API_VERSION = '2025-01'
 
 type GraphQLError = { message?: string }
 type UserError = { field?: string[]; message?: string }
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 async function adminGraphql<T>(
   storeDomain: string,
@@ -36,6 +37,33 @@ function getFileUrl(fileNode: any): string | null {
   if (typeof fileNode.url === 'string' && fileNode.url) return fileNode.url
   if (typeof fileNode?.image?.url === 'string' && fileNode.image.url) return fileNode.image.url
   if (typeof fileNode?.preview?.image?.url === 'string' && fileNode.preview.image.url) return fileNode.preview.image.url
+  return null
+}
+
+async function waitForFileUrl(
+  storeDomain: string,
+  accessToken: string,
+  fileId: string,
+  attempts = 12,
+  delayMs = 1000
+) {
+  const fileNodeQuery = `
+    query fileNode($id: ID!) {
+      node(id: $id) {
+        __typename
+        ... on GenericFile { id url }
+        ... on MediaImage { id status image { url } preview { image { url } } }
+      }
+    }
+  `
+
+  for (let i = 0; i < attempts; i++) {
+    const nodeData = await adminGraphql<{ node: any }>(storeDomain, accessToken, fileNodeQuery, { id: fileId })
+    const url = getFileUrl(nodeData?.node)
+    if (url) return url
+    if (i < attempts - 1) await sleep(delayMs)
+  }
+
   return null
 }
 
@@ -149,9 +177,16 @@ export async function POST(request: NextRequest) {
     }
 
     const created = fileCreateData?.fileCreate?.files?.[0]
-    const url = getFileUrl(created)
+    const createdId = typeof created?.id === 'string' ? created.id : ''
+    let url = getFileUrl(created)
+    if (!url && createdId) {
+      url = await waitForFileUrl(storeDomain, accessToken, createdId)
+    }
     if (!url) {
-      return NextResponse.json({ error: 'Shopify file created but no public URL returned yet' }, { status: 502 })
+      return NextResponse.json(
+        { error: 'Shopify file created but still processing. Please retry in a few seconds.' },
+        { status: 502 }
+      )
     }
 
     return NextResponse.json({
