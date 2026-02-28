@@ -214,9 +214,14 @@
             (typeof event.data.designImageUrl === 'string' && /^https?:\/\//i.test(event.data.designImageUrl) && event.data.designImageUrl) ||
             (typeof event.data.imageUrl === 'string' && /^https?:\/\//i.test(event.data.imageUrl) && event.data.imageUrl) ||
             '';
-          if (resolvedImageUrl) {
-            properties['Design Image'] = resolvedImageUrl;
-            properties['_Design Image URL'] = resolvedImageUrl;
+          const resolvedImageDataUrl =
+            (typeof event.data.customImage === 'string' && /^data:image\//i.test(event.data.customImage) && event.data.customImage) ||
+            '';
+          const preferredImage = resolvedImageUrl || resolvedImageDataUrl || '';
+          if (preferredImage) {
+            properties['Design Image'] = preferredImage;
+            properties['_Design Image URL'] = preferredImage;
+            properties['_customImage'] = preferredImage;
           }
           if (rawPrice != null && rawPrice !== '') properties['Price'] = '$' + Number(rawPrice).toFixed(2);
 
@@ -226,8 +231,8 @@
             properties
           };
 
-          // Add custom image if provided
-          if (event.data.customImage) {
+          // Add custom image if provided (fallback when preferredImage missing)
+          if (!properties['_customImage'] && event.data.customImage) {
             cartData.properties['_customImage'] = event.data.customImage;
           }
 
