@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const API_VERSION = '2025-01'
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+}
 
 type GraphQLError = { message?: string }
 type UserError = { field?: string[]; message?: string }
@@ -75,14 +80,43 @@ export async function POST(request: NextRequest) {
     if (!storeDomain || !accessToken) {
       return NextResponse.json(
         { error: 'Missing Shopify env vars: SHOPIFY_STORE_DOMAIN and SHOPIFY_ADMIN_API_ACCESS_TOKEN are required.' },
-        { status: 500 }
+        { status: 500, headers: CORS_HEADERS }
       )
     }
 
-    const formData = await request.formData()
-    const file = formData.get('image')
+    const contentType = request.headers.get('content-type') || ''
+
+    let file: File | null = null
+    if (contentType.includes('application/json')) {
+      const body = await request.json().catch(() => ({}))
+      const dataUrl =
+        typeof body?.imageBase64 === 'string' ? body.imageBase64 :
+        typeof body?.image === 'string' ? body.image :
+        typeof body?.dataUrl === 'string' ? body.dataUrl :
+        ''
+
+      if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+        return NextResponse.json({ error: 'No valid image data provided' }, { status: 400, headers: CORS_HEADERS })
+      }
+
+      const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/)
+      if (!match) {
+        return NextResponse.json({ error: 'Invalid image data URL' }, { status: 400, headers: CORS_HEADERS })
+      }
+
+      const mimeType = match[1]
+      const base64 = match[2]
+      const buffer = Buffer.from(base64, 'base64')
+      const filename = `design-${Date.now()}.${mimeType.split('/')[1] || 'png'}`
+      file = new File([buffer], filename, { type: mimeType })
+    } else {
+      const formData = await request.formData()
+      const formFile = formData.get('image')
+      if (formFile instanceof File) file = formFile
+    }
+
     if (!(file instanceof File)) {
-      return NextResponse.json({ error: 'No image provided' }, { status: 400 })
+      return NextResponse.json({ error: 'No image provided' }, { status: 400, headers: CORS_HEADERS })
     }
 
     const stagedQuery = `
@@ -123,13 +157,13 @@ export async function POST(request: NextRequest) {
     if (stagedErrors.length > 0) {
       return NextResponse.json(
         { error: stagedErrors.map((e) => e.message).filter(Boolean).join('; ') || 'Failed to create staged upload target' },
-        { status: 400 }
+        { status: 400, headers: CORS_HEADERS }
       )
     }
 
     const target = stagedData?.stagedUploadsCreate?.stagedTargets?.[0]
     if (!target?.url || !target?.resourceUrl) {
-      return NextResponse.json({ error: 'No staged upload target returned from Shopify' }, { status: 500 })
+      return NextResponse.json({ error: 'No staged upload target returned from Shopify' }, { status: 500, headers: CORS_HEADERS })
     }
 
     const uploadForm = new FormData()
@@ -138,7 +172,7 @@ export async function POST(request: NextRequest) {
 
     const uploadRes = await fetch(target.url, { method: 'POST', body: uploadForm })
     if (!uploadRes.ok) {
-      return NextResponse.json({ error: 'Staged upload to Shopify failed' }, { status: 500 })
+      return NextResponse.json({ error: 'Staged upload to Shopify failed' }, { status: 500, headers: CORS_HEADERS })
     }
 
     const fileCreateMutation = `
@@ -172,7 +206,7 @@ export async function POST(request: NextRequest) {
     if (fileErrors.length > 0) {
       return NextResponse.json(
         { error: fileErrors.map((e) => e.message).filter(Boolean).join('; ') || 'Shopify fileCreate failed' },
-        { status: 400 }
+        { status: 400, headers: CORS_HEADERS }
       )
     }
 
@@ -185,7 +219,7 @@ export async function POST(request: NextRequest) {
     if (!url) {
       return NextResponse.json(
         { error: 'Shopify file created but still processing. Please retry in a few seconds.' },
-        { status: 502 }
+        { status: 502, headers: CORS_HEADERS }
       )
     }
 
@@ -194,7 +228,7 @@ export async function POST(request: NextRequest) {
       url,
       provider: 'shopify-files',
       store: storeDomain,
-    })
+    }, { headers: CORS_HEADERS })
   } catch (error) {
     console.error('[upload-design] error:', error)
     return NextResponse.json(
@@ -202,7 +236,11 @@ export async function POST(request: NextRequest) {
         error: 'Upload failed',
         message: error instanceof Error ? error.message : 'Unknown error',
       },
-      { status: 500 }
+      { status: 500, headers: CORS_HEADERS }
     )
   }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
 }

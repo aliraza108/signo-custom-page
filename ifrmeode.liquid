@@ -1,0 +1,268 @@
+{% comment %}
+  SignoGrafx Custom Designer Page (iframe-only)
+  This file handles designer iframe, image upload to Shopify Files, and add-to-cart.
+{% endcomment %}
+
+<style>
+html,body{margin:0;padding:0}
+footer,.shopify-section-footer,#shopify-section-footer{display:none !important}
+#designer-iframe{display:block;width:100%;height:calc(100vh - 80px);min-height:600px;border:0}
+#sgxLoad{position:fixed;inset:0;z-index:9998;background:rgba(255,255,255,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;font-family:Inter,-apple-system,sans-serif;transition:opacity .3s}
+#sgxLoad.hidden{opacity:0;pointer-events:none}
+.sgx-ring{width:44px;height:44px;border:4px solid #e0e0e0;border-top-color:#0a8ff5;border-radius:50%;animation:sgxSpin 1s linear infinite}
+@keyframes sgxSpin{to{transform:rotate(360deg)}}
+.sgx-load-text{font-size:13px;color:#666;font-weight:500}
+#sgxCanvas{position:fixed;left:-9999px;top:0;pointer-events:none}
+</style>
+
+<div id="sgxLoad">
+  <div class="sgx-ring"></div>
+  <div class="sgx-load-text">Loading designer</div>
+</div>
+
+<iframe id="designer-iframe"
+  src="https://signo-custom-page.vercel.app/?product={{ product.id }}&variant={{ product.selected_or_first_available_variant.id }}"
+  allow="camera;clipboard-write">
+</iframe>
+
+<canvas id="sgxCanvas"></canvas>
+<script id="sgxMfRaw" type="application/json">{{ product.metafields.custom | json }}</script>
+
+<script>
+(function(){
+'use strict';
+
+const NEXTJS_URL = 'https://signo-custom-page.vercel.app';
+
+const iframe = document.getElementById('designer-iframe');
+const loader = document.getElementById('sgxLoad');
+const canvas = document.getElementById('sgxCanvas');
+const ctx    = canvas.getContext('2d');
+
+/*  METAFIELDS  */
+let MF = {};
+try{ MF = JSON.parse(document.getElementById('sgxMfRaw').textContent)||{}; }catch(e){}
+function parseMfJson(v){
+  if(!v||v==='null'||v==='') return null;
+  if(typeof v==='object') return v;
+  try{
+    var f=JSON.parse(v);
+    if(typeof f==='string'){try{return JSON.parse(f);}catch(e){return f;}}
+    return f;
+  }catch(e){return null;}
+}
+
+/*  LOADER  */
+iframe.addEventListener('load',function(){
+  setTimeout(()=>{ if(loader){loader.classList.add('hidden');setTimeout(()=>loader.remove(),400);} },700);
+  sendProductData();
+  setTimeout(sendProductData,600);
+  setTimeout(sendProductData,1400);
+});
+
+function sendProductData(){
+  if(!iframe?.contentWindow) return;
+  iframe.contentWindow.postMessage({
+    type:'SHOPIFY_PRODUCT_DATA',
+    payload:{
+      id:       {{ product.id | json }},
+      title:    {{ product.title | json }},
+      handle:   {{ product.handle | json }},
+      variant:{ id: {{ product.selected_or_first_available_variant.id | json }}, price: 0 },
+      metafields:     MF,
+      sizes:          Array.isArray(parseMfJson(MF.sizes)) ? parseMfJson(MF.sizes) : [],
+      materials:      Array.isArray(parseMfJson(MF.materials)) ? parseMfJson(MF.materials) : [],
+      price_per_sqft: MF.price_per_sqft || null,
+      all_metafields: MF
+    }
+  },'*');
+}
+
+/*
+   UPLOAD IMAGE (Shopify Files via Next.js)
+*/
+async function uploadToShopify(dataUrl){
+  if(dataUrl.startsWith('http')) return dataUrl;
+  const res = await fetch(NEXTJS_URL+'/api/upload-design',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({imageBase64:dataUrl})
+  });
+  const json = await res.json();
+  if(!json.success) throw new Error(json.error||'Upload failed');
+  return json.url;
+}
+
+/*
+   IMAGE COMPOSITING
+*/
+function rasteriseSvg(svgStr,w,h){
+  return new Promise(function(resolve){
+    var tmp=document.createElement('canvas');
+    tmp.width=w||1200; tmp.height=h||1200;
+    var c=tmp.getContext('2d');
+    var svg=svgStr.trim();
+    if(!svg.includes('xmlns')) svg=svg.replace('<svg','<svg xmlns="http://www.w3.org/2000/svg"');
+    if(!/\bwidth\s*=/.test(svg.substring(0,400)))
+      svg=svg.replace(/(<svg[^>]*)>/,'$1 width="'+tmp.width+'" height="'+tmp.height+'">');
+    var blob=new Blob([svg],{type:'image/svg+xml;charset=utf-8'});
+    var url=URL.createObjectURL(blob);
+    var img=new Image();
+    img.onload=function(){c.drawImage(img,0,0,tmp.width,tmp.height);URL.revokeObjectURL(url);resolve(tmp.toDataURL('image/png',1));};
+    img.onerror=function(){URL.revokeObjectURL(url);resolve(tmp.toDataURL('image/png',1));};
+    img.src=url;
+  });
+}
+function loadImg(src){
+  return new Promise(function(resolve){
+    var img=new Image(); img.crossOrigin='anonymous';
+    img.onload=function(){resolve(img);}; img.onerror=function(){resolve(null);};
+    img.src=src;
+  });
+}
+async function compositeLayers(layers,W,H){
+  canvas.width=W||1200; canvas.height=H||1200;
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  for(var i=0;i<layers.length;i++){
+    var l=layers[i]; if(!l) continue;
+    var x=l.x||0,y=l.y||0,w=l.width||canvas.width,h=l.height||canvas.height;
+    var op=l.opacity!=null?l.opacity:1,rot=l.rotation||0;
+    ctx.save(); ctx.globalAlpha=Math.max(0,Math.min(1,op));
+    if(rot){ctx.translate(x+w/2,y+h/2);ctx.rotate(rot*Math.PI/180);ctx.translate(-(x+w/2),-(y+h/2));}
+    try{
+      var src=l.svgString?await rasteriseSvg(l.svgString,w,h):l.dataUrl;
+      if(src){var imgEl=await loadImg(src);if(imgEl)ctx.drawImage(imgEl,x,y,w,h);}
+    }catch(e){}
+    ctx.restore();
+  }
+  return canvas.toDataURL('image/png',1.0);
+}
+async function resolveImage(data){
+  var W=data.canvasWidth||1200, H=data.canvasHeight||1200;
+  if(data.layerData?.length>0) return await compositeLayers(data.layerData,W,H);
+  if(data.svgString) return await rasteriseSvg(data.svgString,W,H);
+  for(const k of ['customImage','custom_image','designImage','design_image','imageData',
+    'image','canvasImage','previewImage','preview','exportImage','pngData','dataUrl','dataURL','base64']){
+    const v=data[k];
+    if(v&&typeof v==='string'&&(v.startsWith('data:')||v.startsWith('http'))) return v;
+  }
+  console.warn('[SGX] No image in payload. Keys:',Object.keys(data));
+  return null;
+}
+
+/*
+   INSTANT CART REFRESH
+*/
+async function forceCartRefresh(){
+  try{
+    const cart = await fetch('/cart.js').then(r=>r.json());
+    const count = cart.item_count;
+
+    document.querySelectorAll([
+      '[data-cart-count]','[data-cart-item-count]','[data-cart-icon-bubble]',
+      '[data-cart-badge]','.cart-count','.cart__count','.cart-count-bubble',
+      '#CartCount','.js-cart-count','[data-header-cart-quantity]',
+      '.cart-count-bubble span','#cart-icon-bubble span'
+    ].join(',')).forEach(el=>{
+      el.textContent=count; el.setAttribute('data-count',count);
+      if(count>0){el.style.display='';el.removeAttribute('hidden');}
+    });
+
+    ['cart:refresh','cart:updated','cart:change','cart:item-added',
+     'dispatch:cart-drawer:open','dispatch:cart-drawer:refresh'
+    ].forEach(n=>{
+      [document.documentElement,document,window].forEach(t=>
+        t.dispatchEvent(new CustomEvent(n,{bubbles:true,detail:{cart}}))
+      );
+    });
+
+    /* Dawn sections re-render */
+    const drawer = document.querySelector('cart-drawer');
+    if(drawer){
+      try{
+        const r=await fetch('/?sections=cart-drawer,cart-icon-bubble');
+        const html=await r.json();
+        if(html['cart-drawer']){
+          const doc=new DOMParser().parseFromString(html['cart-drawer'],'text/html');
+          const nd=doc.querySelector('cart-drawer');
+          if(nd) drawer.innerHTML=nd.innerHTML;
+        }
+        if(html['cart-icon-bubble']){
+          const doc=new DOMParser().parseFromString(html['cart-icon-bubble'],'text/html');
+          document.querySelectorAll('#cart-icon-bubble').forEach(el=>{
+            const n=doc.querySelector('#cart-icon-bubble'); if(n) el.innerHTML=n.innerHTML;
+          });
+        }
+        if(typeof drawer.open==='function') drawer.open();
+        else drawer.setAttribute('open','');
+      }catch(e){}
+    }
+
+    if(window.theme?.cart?.getCart)     window.theme.cart.getCart();
+    if(window.theme?.miniCart?.refresh) window.theme.miniCart.refresh();
+    if(window.Shopify?.onCartUpdate)    window.Shopify.onCartUpdate(cart);
+
+    if(!drawer){
+      var t=document.createElement('div');
+      t.textContent=' Added to cart';
+      t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:12px 28px;border-radius:8px;font:600 14px/1 sans-serif;z-index:99999;transition:opacity .4s';
+      document.body.appendChild(t);
+      setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),400);},2800);
+    }
+  }catch(e){ console.warn('[SGX] Cart refresh:',e.message); }
+}
+
+/*
+   MESSAGE HANDLER
+*/
+window.addEventListener('message',async function(ev){
+  if(!ev.data?.type) return;
+
+  if(ev.data.type==='ADD_TO_CART'){
+    var data=ev.data;
+    iframe.contentWindow.postMessage({type:'CART_PROCESSING'},'*');
+    try{
+      var imgDataUrl = await resolveImage(data);
+      var imageUrl   = null;
+
+      if(imgDataUrl){
+        try{
+          imageUrl = await uploadToShopify(imgDataUrl);
+          console.log('[SGX] Shopify Files URL:',imageUrl);
+        }catch(e){
+          console.warn('[SGX] Upload failed:',e.message);
+        }
+      }
+
+      var props = {};
+      if(data.material)              props['Material'] = data.material;
+      if(data.size||data.customSize) props['Size']     = data.size||data.customSize;
+      if(data.sides)                 props['Sides']    = data.sides;
+      if(data.qty||data.quantity)    props['Quantity'] = String(data.qty||data.quantity||1);
+      if(data.unitPrice)             props['Price']    = '$'+parseFloat(data.unitPrice).toFixed(2);
+      if(imageUrl)                   props['Design Image'] = imageUrl;
+
+      var res=await fetch('/cart/add.js',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({id:data.variantId,quantity:data.quantity||data.qty||1,properties:props})
+      });
+      if(!res.ok){var eb=await res.json().catch(()=>({}));throw new Error(eb.description||'Cart error');}
+      var result=await res.json();
+
+      await forceCartRefresh();
+
+      iframe.contentWindow.postMessage({
+        type:'CART_UPDATED',
+        payload:{success:true,imageUrl:imageUrl,itemKey:result.key}
+      },'*');
+
+    }catch(err){
+      console.error('[SGX] ATC failed:',err);
+      iframe.contentWindow.postMessage({type:'CART_ERROR',payload:{success:false,error:err.message}},'*');
+    }
+  }
+});
+
+})();
+</script>
