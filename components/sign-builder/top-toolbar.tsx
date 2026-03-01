@@ -113,8 +113,8 @@ async function captureDesignCanvasImage(setZoom?: (z: number) => void, currentZo
   }
   await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
   const rect = el.getBoundingClientRect()
-  const captureWidth = Math.max(1, Math.round(rect.width))
-  const captureHeight = Math.max(1, Math.round(rect.height))
+  const captureWidth = Math.max(1, Math.round(el.scrollWidth || rect.width || 1))
+  const captureHeight = Math.max(1, Math.round(el.scrollHeight || rect.height || 1))
   const canvas = await html2canvas(el, {
     backgroundColor: '#ffffff',
     useCORS: true,
@@ -122,14 +122,17 @@ async function captureDesignCanvasImage(setZoom?: (z: number) => void, currentZo
     scale: 1,
     width: captureWidth,
     height: captureHeight,
-    windowWidth: document.documentElement.clientWidth,
-    windowHeight: document.documentElement.clientHeight,
+    windowWidth: Math.max(document.documentElement.clientWidth, captureWidth),
+    windowHeight: Math.max(document.documentElement.clientHeight, captureHeight),
+    scrollX: 0,
+    scrollY: 0,
     onclone: (doc) => {
       const clone = doc.querySelector('[data-design-canvas]') as HTMLElement | null
       if (clone) {
         clone.style.backgroundImage = 'none'
         clone.style.boxShadow = 'none'
         clone.style.borderRadius = '0'
+        clone.style.overflow = 'visible'
       }
     },
     ignoreElements: (node) =>
