@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "pnpm": "^10.0.0"
+  },
+  "_npx": {
+    "packages": [
+      "pnpm@10.0.0"
+    ]
+  }
+}

@@ -1,0 +1,114 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@11.6.2
+2 info using node@v25.2.0
+3 silly config load:file:C:\Program Files\nodejs\node_modules\npm\npmrc
+4 silly config load:file:D:\signo-custom-page\.npmrc
+5 silly config load:file:C:\Users\HP\.npmrc
+6 silly config load:file:C:\Users\HP\AppData\Roaming\npm\etc\npmrc
+7 verbose title npm exec pnpm@10.0.0 install --no-frozen-lockfile
+8 verbose argv "exec" "--" "pnpm@10.0.0" "install" "--no-frozen-lockfile"
+9 verbose logfile logs-max:10 dir:D:\signo-custom-page\.npm-cache\_logs\2026-03-01T12_01_12_033Z-
+10 verbose logfile D:\signo-custom-page\.npm-cache\_logs\2026-03-01T12_01_12_033Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:2283798528 maxSize:570949632 maxEntrySize:285474816
+13 http fetch GET 200 https://registry.npmjs.org/pnpm 21799ms (cache miss)
+14 silly packumentCache heap:2283798528 maxSize:570949632 maxEntrySize:285474816
+15 silly packumentCache heap:2283798528 maxSize:570949632 maxEntrySize:285474816
+16 warn exec The following package was not found and will be installed: pnpm@10.0.0
+17 silly idealTree buildDeps
+18 silly fetch manifest pnpm@10.0.0
+19 silly packumentCache full:https://registry.npmjs.org/pnpm cache-miss
+20 http fetch GET 200 https://registry.npmjs.org/pnpm 28233ms (cache miss)
+21 silly packumentCache full:https://registry.npmjs.org/pnpm set size:undefined disposed:false
+22 silly placeDep ROOT pnpm@10.0.0 OK for:  want: 10.0.0
+23 silly reify moves {}
+24 silly audit bulk request { pnpm: [ '10.0.0' ] }
+25 http cache pnpm@https://registry.npmjs.org/pnpm/-/pnpm-10.0.0.tgz 0ms (cache hit)
+26 silly tarball no local data for pnpm@https://registry.npmjs.org/pnpm/-/pnpm-10.0.0.tgz. Extracting by manifest.
+27 http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 369ms
+28 silly audit report {
+28 silly audit report   pnpm: [
+28 silly audit report     {
+28 silly audit report       id: 1111960,
+28 silly audit report       url: 'https://github.com/advisories/GHSA-379q-355j-w6rj',
+28 silly audit report       title: 'pnpm v10+ Bypass "Dependency lifecycle scripts execution disabled by default"',
+28 silly audit report       severity: 'high',
+28 silly audit report       vulnerable_versions: '>=10.0.0 <10.26.0',
+28 silly audit report       cwe: [Array],
+28 silly audit report       cvss: [Object]
+28 silly audit report     },
+28 silly audit report     {
+28 silly audit report       id: 1111961,
+28 silly audit report       url: 'https://github.com/advisories/GHSA-7vhp-vf5g-r2fw',
+28 silly audit report       title: 'pnpm Has Lockfile Integrity Bypass that Allows Remote Dynamic Dependencies',
+28 silly audit report       severity: 'high',
+28 silly audit report       vulnerable_versions: '<10.26.0',
+28 silly audit report       cwe: [Array],
+28 silly audit report       cvss: [Object]
+28 silly audit report     },
+28 silly audit report     {
+28 silly audit report       id: 1111962,
+28 silly audit report       url: 'https://github.com/advisories/GHSA-2phv-j68v-wwqx',
+28 silly audit report       title: 'pnpm vulnerable to Command Injection via environment variable substitution',
+28 silly audit report       severity: 'high',
+28 silly audit report       vulnerable_versions: '>=6.25.0 <10.27.0',
+28 silly audit report       cwe: [Array],
+28 silly audit report       cvss: [Object]
+28 silly audit report     },
+28 silly audit report     {
+28 silly audit report       id: 1112536,
+28 silly audit report       url: 'https://github.com/advisories/GHSA-v253-rj99-jwpq',
+28 silly audit report       title: 'pnpm has Path Traversal via arbitrary file permission modification ',
+28 silly audit report       severity: 'moderate',
+28 silly audit report       vulnerable_versions: '<10.28.2',
+28 silly audit report       cwe: [Array],
+28 silly audit report       cvss: [Object]
+28 silly audit report     },
+28 silly audit report     {
+28 silly audit report       id: 1112639,
+28 silly audit report       url: 'https://github.com/advisories/GHSA-6pfh-p556-v868',
+28 silly audit report       title: 'pnpm: Binary ZIP extraction allows arbitrary file write via path traversal (Zip Slip)',
+28 silly audit report       severity: 'moderate',
+28 silly audit report       vulnerable_versions: '<10.28.1',
+28 silly audit report       cwe: [Array],
+28 silly audit report       cvss: [Object]
+28 silly audit report     },
+28 silly audit report     {
+28 silly audit report       id: 1112679,
+28 silly audit report       url: 'https://github.com/advisories/GHSA-6x96-7vc8-cm3p',
+28 silly audit report       title: 'pnpm has Windows-specific tarball Path Traversal',
+28 silly audit report       severity: 'moderate',
+28 silly audit report       vulnerable_versions: '<10.28.1',
+28 silly audit report       cwe: [Array],
+28 silly audit report       cvss: [Object]
+28 silly audit report     },
+28 silly audit report     {
+28 silly audit report       id: 1112680,
+28 silly audit report       url: 'https://github.com/advisories/GHSA-xpqm-wm3m-f34h',
+28 silly audit report       title: 'pnpm scoped bin name Path Traversal allows arbitrary file creation outside node_modules/.bin',
+28 silly audit report       severity: 'moderate',
+28 silly audit report       vulnerable_versions: '<10.28.1',
+28 silly audit report       cwe: [Array],
+28 silly audit report       cvss: [Object]
+28 silly audit report     },
+28 silly audit report     {
+28 silly audit report       id: 1112681,
+28 silly audit report       url: 'https://github.com/advisories/GHSA-m733-5w8f-5ggw',
+28 silly audit report       title: 'pnpm has symlink traversal in file:/git dependencies',
+28 silly audit report       severity: 'moderate',
+28 silly audit report       vulnerable_versions: '<10.28.2',
+28 silly audit report       cwe: [Array],
+28 silly audit report       cvss: [Object]
+28 silly audit report     }
+28 silly audit report   ]
+28 silly audit report }
+29 silly packumentCache corgi:https://registry.npmjs.org/pnpm cache-miss
+30 http cache https://registry.npmjs.org/pnpm 24ms (cache hit)
+31 silly packumentCache corgi:https://registry.npmjs.org/pnpm set size:1743418 disposed:false
+32 http fetch GET 200 https://registry.npmjs.org/pnpm/-/pnpm-10.0.0.tgz 206050ms (cache miss)
+33 verbose cwd D:\signo-custom-page
+34 verbose os Windows_NT 10.0.19045
+35 verbose node v25.2.0
+36 verbose npm  v11.6.2
+37 verbose exit 1
+38 verbose code 1
