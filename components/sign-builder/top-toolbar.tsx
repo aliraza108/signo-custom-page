@@ -48,7 +48,7 @@ import {
   Loader,
 } from 'lucide-react'
 
-const EXPORT_PX_PER_INCH = 100
+const EXPORT_PX_PER_INCH = 25
 
 type Html2CanvasFn = (el: HTMLElement, options?: any) => Promise<HTMLCanvasElement>
 
@@ -112,16 +112,24 @@ async function captureDesignCanvasImage(setZoom?: (z: number) => void, currentZo
     }
   }
   await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
-  const scale = Math.max(2, window.devicePixelRatio || 1)
+  const rect = el.getBoundingClientRect()
+  const captureWidth = Math.max(1, Math.round(rect.width))
+  const captureHeight = Math.max(1, Math.round(rect.height))
   const canvas = await html2canvas(el, {
     backgroundColor: '#ffffff',
     useCORS: true,
     allowTaint: true,
-    scale,
+    scale: 1,
+    width: captureWidth,
+    height: captureHeight,
+    windowWidth: document.documentElement.clientWidth,
+    windowHeight: document.documentElement.clientHeight,
     onclone: (doc) => {
       const clone = doc.querySelector('[data-design-canvas]') as HTMLElement | null
       if (clone) {
         clone.style.backgroundImage = 'none'
+        clone.style.boxShadow = 'none'
+        clone.style.borderRadius = '0'
       }
     },
     ignoreElements: (node) =>
