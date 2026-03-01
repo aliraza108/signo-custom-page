@@ -55,12 +55,26 @@ async function captureDesignCanvasImage() {
   if (!el) throw new Error('Design canvas not found')
 
   const { default: html2canvas } = await import('html2canvas')
+  if (document.fonts?.ready) {
+    try {
+      await document.fonts.ready
+    } catch {
+      // Ignore font readiness failures; html2canvas will still attempt render.
+    }
+  }
+  await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
   const scale = Math.max(2, window.devicePixelRatio || 1)
   const canvas = await html2canvas(el, {
     backgroundColor: '#ffffff',
     useCORS: true,
     allowTaint: true,
     scale,
+    onclone: (doc) => {
+      const clone = doc.querySelector('[data-design-canvas]') as HTMLElement | null
+      if (clone) {
+        clone.style.backgroundImage = 'none'
+      }
+    },
     ignoreElements: (node) =>
       (node as HTMLElement)?.dataset?.captureIgnore === 'true',
   })
