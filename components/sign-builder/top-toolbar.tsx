@@ -50,6 +50,24 @@ import {
 
 const EXPORT_PX_PER_INCH = 100
 
+async function captureDesignCanvasImage() {
+  const el = document.querySelector('[data-design-canvas]') as HTMLElement | null
+  if (!el) throw new Error('Design canvas not found')
+
+  const { default: html2canvas } = await import('html2canvas')
+  const scale = Math.max(2, window.devicePixelRatio || 1)
+  const canvas = await html2canvas(el, {
+    backgroundColor: '#ffffff',
+    useCORS: true,
+    allowTaint: true,
+    scale,
+    ignoreElements: (node) =>
+      (node as HTMLElement)?.dataset?.captureIgnore === 'true',
+  })
+
+  return canvas.toDataURL('image/png', 1)
+}
+
 function normalizeSvg(svg: string, width: number, height: number) {
   let out = (svg || '').trim()
   if (!out) return out
@@ -391,7 +409,12 @@ export function TopToolbar() {
       }
 
       const { layers, canvasPixelWidth, canvasPixelHeight } = buildLayerData()
-      const customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
+      let customImage = ''
+      try {
+        customImage = await captureDesignCanvasImage()
+      } catch {
+        customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
+      }
       const designImageUrl = await uploadDesignImageToBackend(customImage)
 
       const displayPrice = designPrice > 0 ? designPrice : variantPrice && variantPrice > 0 ? variantPrice : 0
@@ -461,7 +484,12 @@ export function TopToolbar() {
       }
 
       const { layers, canvasPixelWidth, canvasPixelHeight } = buildLayerData()
-      const customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
+      let customImage = ''
+      try {
+        customImage = await captureDesignCanvasImage()
+      } catch {
+        customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
+      }
       const designImageUrl = await uploadDesignImageToBackend(customImage)
       const displayPrice = designPrice > 0 ? designPrice : variantPrice && variantPrice > 0 ? variantPrice : 0
       const normalizedPrice = Number(displayPrice.toFixed(2))

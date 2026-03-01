@@ -668,6 +668,7 @@ export function DesignCanvas() {
                 transform: `rotate(${obj.rotation}deg)`,
                 transformOrigin: 'center center',
               }}
+              data-capture-ignore="true"
             />
             {/* Corner resize handles */}
             {['nw', 'ne', 'se', 'sw'].map(handle => {
@@ -701,6 +702,7 @@ export function DesignCanvas() {
                     borderRadius: '2px',
                     zIndex: 1000,
                   }}
+                  data-capture-ignore="true"
                   onMouseDown={(e) => handleMouseDown(e, obj.id, handle)}
                 />
               )
@@ -739,6 +741,7 @@ export function DesignCanvas() {
                     borderRadius: '2px',
                     zIndex: 1000,
                   }}
+                  data-capture-ignore="true"
                   onMouseDown={(e) => handleMouseDown(e, obj.id, handle)}
                 />
               )
@@ -759,6 +762,7 @@ export function DesignCanvas() {
                 transform: `rotate(${obj.rotation}deg)`,
                 transformOrigin: `6px ${pixelHeight / 2 + 30}px`,
               }}
+              data-capture-ignore="true"
               onMouseDown={(e) => handleMouseDown(e, obj.id, 'rotate')}
             />
             {/* Rotation line */}
@@ -774,6 +778,7 @@ export function DesignCanvas() {
                 transform: `rotate(${obj.rotation}deg)`,
                 transformOrigin: `0.5px ${pixelHeight / 2 + 24}px`,
               }}
+              data-capture-ignore="true"
             />
           </>
         )}
@@ -927,6 +932,7 @@ export function DesignCanvas() {
                 document.addEventListener('mouseup', handleEnd)
               }}
               title="Drag to resize canvas"
+              data-capture-ignore="true"
             />
           </div>
 
