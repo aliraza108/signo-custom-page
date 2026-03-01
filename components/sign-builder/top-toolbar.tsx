@@ -206,18 +206,30 @@ function shapeToSvg(obj: CanvasObject, width: number, height: number) {
 }
 
 function textToSvg(obj: CanvasObject, width: number, height: number) {
-  const safeText = (obj.text || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+  const rawText = obj.text || ''
+  const escapeText = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
   const fontSize = Math.max(8, obj.fontSize || 32)
+  const lineHeight = Math.max(0.8, obj.lineHeight || 1.2)
   const weight = obj.fontWeight || 'normal'
   const style = obj.fontStyle || 'normal'
   const family = (obj.fontFamily || 'sans-serif').replace(/"/g, '')
   const color = obj.textColor || '#000000'
   const anchor = obj.textAlign === 'left' ? 'start' : obj.textAlign === 'right' ? 'end' : 'middle'
   const x = obj.textAlign === 'left' ? 0 : obj.textAlign === 'right' ? width : width / 2
-  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="${obj.backgroundColor && obj.backgroundColor !== 'transparent' ? obj.backgroundColor : 'none'}" /><text x="${x}" y="${height / 2}" dominant-baseline="middle" text-anchor="${anchor}" fill="${color}" font-family="${family}" font-size="${fontSize}" font-weight="${weight}" font-style="${style}">${safeText}</text></svg>`
+  const lines = rawText.replace(/\r\n/g, '\n').split('\n')
+  const lineHeightPx = fontSize * lineHeight
+  const totalHeight = lines.length * lineHeightPx
+  const startY = height / 2 - totalHeight / 2 + lineHeightPx / 2
+  const tspans = lines.map((line, i) => {
+    const safeLine = line.length ? escapeText(line) : '&#160;'
+    const y = startY + i * lineHeightPx
+    return `<tspan x="${x}" y="${y}" dominant-baseline="middle">${safeLine}</tspan>`
+  }).join('')
+  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="${obj.backgroundColor && obj.backgroundColor !== 'transparent' ? obj.backgroundColor : 'none'}" /><text text-anchor="${anchor}" fill="${color}" font-family="${family}" font-size="${fontSize}" font-weight="${weight}" font-style="${style}">${tspans}</text></svg>`
 }
 
 async function rasteriseSvg(svgStr: string, w: number, h: number) {
