@@ -56,22 +56,36 @@ async function loadHtml2Canvas(): Promise<Html2CanvasFn> {
   const w = window as typeof window & { html2canvas?: Html2CanvasFn }
   if (w.html2canvas) return w.html2canvas
 
-  await new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector('script[data-html2canvas]') as HTMLScriptElement | null
-    if (existing) {
-      existing.addEventListener('load', () => resolve())
-      existing.addEventListener('error', () => reject(new Error('Failed to load html2canvas')))
-      return
-    }
+  const sources = [
+    'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+    'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+  ]
 
-    const script = document.createElement('script')
-    script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'
-    script.async = true
-    script.setAttribute('data-html2canvas', 'true')
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Failed to load html2canvas'))
-    document.head.appendChild(script)
-  })
+  for (const src of sources) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const existing = document.querySelector(`script[data-html2canvas][src="${src}"]`) as HTMLScriptElement | null
+        if (existing) {
+          existing.addEventListener('load', () => resolve())
+          existing.addEventListener('error', () => reject(new Error('Failed to load html2canvas')))
+          return
+        }
+
+        const script = document.createElement('script')
+        script.src = src
+        script.async = true
+        script.setAttribute('data-html2canvas', 'true')
+        script.onload = () => resolve()
+        script.onerror = () => reject(new Error('Failed to load html2canvas'))
+        document.head.appendChild(script)
+      })
+
+      if (w.html2canvas) return w.html2canvas
+    } catch {
+      // try next CDN
+    }
+  }
 
   if (!w.html2canvas) {
     throw new Error('html2canvas not available after load')
@@ -79,11 +93,17 @@ async function loadHtml2Canvas(): Promise<Html2CanvasFn> {
   return w.html2canvas
 }
 
-async function captureDesignCanvasImage() {
+async function captureDesignCanvasImage(setZoom?: (z: number) => void, currentZoom?: number) {
   const el = document.querySelector('[data-design-canvas]') as HTMLElement | null
   if (!el) throw new Error('Design canvas not found')
 
   const html2canvas = await loadHtml2Canvas()
+  const prevZoom = typeof currentZoom === 'number' ? currentZoom : 1
+  if (setZoom && prevZoom !== 1) {
+    setZoom(1)
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+  }
   if (document.fonts?.ready) {
     try {
       await document.fonts.ready
@@ -108,6 +128,9 @@ async function captureDesignCanvasImage() {
       (node as HTMLElement)?.dataset?.captureIgnore === 'true',
   })
 
+  if (setZoom && prevZoom !== 1) {
+    setZoom(prevZoom)
+  }
   return canvas.toDataURL('image/png', 1)
 }
 
@@ -454,7 +477,7 @@ export function TopToolbar() {
       const { layers, canvasPixelWidth, canvasPixelHeight } = buildLayerData()
       let customImage = ''
       try {
-        customImage = await captureDesignCanvasImage()
+        customImage = await captureDesignCanvasImage(setZoom, zoom)
       } catch {
         customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
       }
@@ -529,7 +552,7 @@ export function TopToolbar() {
       const { layers, canvasPixelWidth, canvasPixelHeight } = buildLayerData()
       let customImage = ''
       try {
-        customImage = await captureDesignCanvasImage()
+        customImage = await captureDesignCanvasImage(setZoom, zoom)
       } catch {
         customImage = await exportFullDesign(layers, canvasPixelWidth, canvasPixelHeight)
       }
