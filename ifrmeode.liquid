@@ -139,9 +139,19 @@ async function compositeLayers(layers,W,H){
 }
 async function resolveImage(data){
   var W=data.canvasWidth||1200, H=data.canvasHeight||1200;
+  // Prefer full composite sent by app for pixel-perfect match
+  if(data.customImage && typeof data.customImage==='string' && (data.customImage.startsWith('data:')||data.customImage.startsWith('http'))){
+    return data.customImage;
+  }
+  if(data.designImageUrl && typeof data.designImageUrl==='string' && data.designImageUrl.startsWith('http')){
+    return data.designImageUrl;
+  }
+  if(data.imageUrl && typeof data.imageUrl==='string' && data.imageUrl.startsWith('http')){
+    return data.imageUrl;
+  }
   if(data.layerData?.length>0) return await compositeLayers(data.layerData,W,H);
   if(data.svgString) return await rasteriseSvg(data.svgString,W,H);
-  for(const k of ['customImage','custom_image','designImage','design_image','imageData',
+  for(const k of ['custom_image','designImage','design_image','imageData',
     'image','canvasImage','previewImage','preview','exportImage','pngData','dataUrl','dataURL','base64']){
     const v=data[k];
     if(v&&typeof v==='string'&&(v.startsWith('data:')||v.startsWith('http'))) return v;
@@ -240,7 +250,11 @@ window.addEventListener('message',async function(ev){
       if(data.sides)                 props['Sides']    = data.sides;
       if(data.qty||data.quantity)    props['Quantity'] = String(data.qty||data.quantity||1);
       if(data.unitPrice)             props['Price']    = '$'+parseFloat(data.unitPrice).toFixed(2);
-      if(imageUrl)                   props['Design Image'] = imageUrl;
+      if(imageUrl){
+        props['Design Image'] = imageUrl;
+        props['_Design Image URL'] = imageUrl;
+        props['_customImage'] = imageUrl;
+      }
 
       var res=await fetch('/cart/add.js',{
         method:'POST',
