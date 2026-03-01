@@ -50,11 +50,40 @@ import {
 
 const EXPORT_PX_PER_INCH = 100
 
+type Html2CanvasFn = (el: HTMLElement, options?: any) => Promise<HTMLCanvasElement>
+
+async function loadHtml2Canvas(): Promise<Html2CanvasFn> {
+  const w = window as typeof window & { html2canvas?: Html2CanvasFn }
+  if (w.html2canvas) return w.html2canvas
+
+  await new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector('script[data-html2canvas]') as HTMLScriptElement | null
+    if (existing) {
+      existing.addEventListener('load', () => resolve())
+      existing.addEventListener('error', () => reject(new Error('Failed to load html2canvas')))
+      return
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'
+    script.async = true
+    script.setAttribute('data-html2canvas', 'true')
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Failed to load html2canvas'))
+    document.head.appendChild(script)
+  })
+
+  if (!w.html2canvas) {
+    throw new Error('html2canvas not available after load')
+  }
+  return w.html2canvas
+}
+
 async function captureDesignCanvasImage() {
   const el = document.querySelector('[data-design-canvas]') as HTMLElement | null
   if (!el) throw new Error('Design canvas not found')
 
-  const { default: html2canvas } = await import('html2canvas')
+  const html2canvas = await loadHtml2Canvas()
   if (document.fonts?.ready) {
     try {
       await document.fonts.ready
