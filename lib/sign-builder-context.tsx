@@ -222,14 +222,39 @@ export function SignBuilderProvider({ children }: { children: ReactNode }) {
     })
   }, [saveToHistory])
 
-  const setCanvasSize = useCallback((width: number, height: number) => {
-    setState(prev => ({
-      ...prev,
-      canvasWidth: width,
-      canvasHeight: height,
-      price: calculatePrice(width, height, prev.quantity),
+  const scaleObjectsForCanvas = useCallback((objs: CanvasObject[], scaleX: number, scaleY: number) => {
+    const scale = (scaleX + scaleY) / 2
+    return objs.map(obj => ({
+      ...obj,
+      x: obj.x * scaleX,
+      y: obj.y * scaleY,
+      width: obj.width * scaleX,
+      height: obj.height * scaleY,
+      fontSize: obj.fontSize != null ? obj.fontSize * scale : obj.fontSize,
+      letterSpacing: obj.letterSpacing != null ? obj.letterSpacing * scale : obj.letterSpacing,
+      strokeWidth: obj.strokeWidth != null ? obj.strokeWidth * scale : obj.strokeWidth,
+      cornerRadius: obj.cornerRadius != null ? obj.cornerRadius * scale : obj.cornerRadius,
+      borderRadius: obj.borderRadius != null ? obj.borderRadius * scale : obj.borderRadius,
+      cellPadding: obj.cellPadding != null ? obj.cellPadding * scale : obj.cellPadding,
     }))
   }, [])
+
+  const setCanvasSize = useCallback((width: number, height: number) => {
+    setState(prev => {
+      const safePrevWidth = Math.max(0.01, prev.canvasWidth)
+      const safePrevHeight = Math.max(0.01, prev.canvasHeight)
+      const scaleX = width / safePrevWidth
+      const scaleY = height / safePrevHeight
+      return {
+        ...prev,
+        canvasWidth: width,
+        canvasHeight: height,
+        objects: scaleObjectsForCanvas(prev.objects, scaleX, scaleY),
+        backObjects: scaleObjectsForCanvas(prev.backObjects, scaleX, scaleY),
+        price: calculatePrice(width, height, prev.quantity),
+      }
+    })
+  }, [scaleObjectsForCanvas])
 
   const setZoom = useCallback((zoom: number) => {
     setState(prev => ({ ...prev, zoom: Math.max(0.25, Math.min(3, zoom)) }))
