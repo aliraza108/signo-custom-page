@@ -1,0 +1,23 @@
+{% comment %}
+  Usage in cart item loops:
+  - Put this near where cart item image is rendered.
+  - It prefers uploaded custom preview URL from line item properties.
+{% endcomment %}
+
+{% assign preview_url = item.properties['_preview_image'] | default: item.properties['_preview'] | default: item.properties['_image'] | default: item.properties['_customImage'] | default: item.properties['_Design Preview'] | default: item.properties['Design Preview'] %}
+
+{% if preview_url != blank %}
+  <img
+    src="{{ preview_url }}"
+    alt="Custom design preview"
+    loading="lazy"
+    width="180"
+    height="180">
+{% elsif item.image %}
+  <img
+    src="{{ item.image | image_url: width: 360 }}"
+    alt="{{ item.product.title | escape }}"
+    loading="lazy"
+    width="180"
+    height="180">
+{% endif %}
